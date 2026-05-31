@@ -3,6 +3,48 @@
 All notable changes to this project are documented here, one entry per phase.
 This project follows the phased build plan in `PLAN.md`.
 
+## Phase 2 - Flippers and the playfield
+
+It now plays like pinball: launch, flip, hit bumpers and targets, drain. Flippers
+feel responsive and tilt can lock you out.
+
+### Added
+- `js/game/flipper.js`: rotating flippers that slew between a rest and an active
+  angle and impart their surface velocity to the ball on contact (the source of
+  flipper "kick"). A swept solver handles the ball-into-flipper case; a dedicated
+  overlap resolver handles the flipper-into-resting-ball case so a raised flipper
+  launches the ball.
+- `js/game/bumper.js`: pop bumpers (circular) with an outward kick, score, and a
+  lit flash.
+- `js/game/target.js`: a drop-target bank that knocks down for points, awards a
+  bonus when cleared, and pops back up after a delay.
+- `js/game/ramp.js`: helpers to build curved guides (arc) and channel lanes,
+  used here to round the top corners so a launched ball orbits over the top.
+- Nudge and tilt in `js/engine/input.js` and the step logic: arrows nudge the
+  ball and fill a tilt-bob meter; crossing the limit triggers TILT, which
+  disables the flippers and nudges until the ball drains.
+- Flipper bindings (Shift keys, with Z and slash as alternates) alongside the
+  Phase 1 plunger (Space or Down) and reset (R).
+
+### Changed
+- `js/physics/collision.js` now resolves moving surfaces (flipper surface
+  velocity in the bounce frame), circular bumpers (swept circle test), per-hit
+  kick impulses, and records per-step contacts for scoring. Ball speed is clamped
+  for stability.
+- `js/physics/physics.js` world gains `flippers` and `circles` collections and a
+  speed clamp; segments carry kind/score/active metadata.
+- A real inline table replaces the Phase 1 box: rounded top, plunger lane, three
+  bumpers, two slingshots, a drop-target bank, two flippers, and angled lower
+  walls feeding three drain paths (two outlanes plus the center).
+- A running score is shown in the HUD (the full scoring and rank system is
+  Phase 3).
+
+### Exit criteria
+
+Met. The self-test (`index.html?selftest`) reports `det=OK tunnel=OK flipper=OK`:
+the simulation is deterministic, a fast ball does not tunnel, and a flipper
+propels a resting ball strongly upward. No console errors, offline via `file://`.
+
 ## Phase 1 - Physics core
 
 A ball now obeys gravity, bounces realistically off walls with no tunneling, and

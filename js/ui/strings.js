@@ -11,12 +11,16 @@
     pressToStart: 'Press SPACE to launch',
     booting: 'Systems online',
 
-    // Phase 1 sandbox.
-    phase1Header: 'PHASE 1 - PHYSICS SANDBOX',
-    plungerHint: 'HOLD SPACE to charge, release to launch',
-    resetHint: 'R to reset the ball',
+    // Phase 2 sandbox.
+    phase2Header: 'PHASE 2 - FLIPPERS AND PLAYFIELD',
+    controlsFlippers: 'SHIFT (or Z / slash): flippers',
+    controlsPlunger: 'SPACE or DOWN: plunger',
+    controlsNudge: 'ARROWS: nudge',
+    controlsReset: 'R: reset ball',
+    score: 'Score',
     drains: 'Drains',
-    speed: 'Speed',
+    tiltWarn: 'CAREFUL',
+    tilted: 'TILT',
   };
 
 })(window.PB = window.PB || {});

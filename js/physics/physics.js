@@ -6,7 +6,6 @@
 (function (PB) {
   'use strict';
 
-  // Vector helpers. Vectors are plain {x, y} objects.
   var V = {
     add: function (a, b) { return { x: a.x + b.x, y: a.y + b.y }; },
     sub: function (a, b) { return { x: a.x - b.x, y: a.y - b.y }; },
@@ -18,13 +17,12 @@
       var l = Math.sqrt(a.x * a.x + a.y * a.y) || 1;
       return { x: a.x / l, y: a.y / l };
     },
-    // Left-hand perpendicular.
     perp: function (a) { return { x: -a.y, y: a.x }; },
   };
   PB.V = V;
 
-  // mulberry32: a small, fast, deterministic PRNG. Same seed gives same stream
-  // on every machine, which keeps any randomized gameplay reproducible.
+  // mulberry32: a small, fast, deterministic PRNG. Same seed gives the same
+  // stream on every machine, keeping any randomized gameplay reproducible.
   PB.makeRNG = function (seed) {
     var s = seed >>> 0;
     return function () {
@@ -35,7 +33,6 @@
     };
   };
 
-  // Construct an empty physics world. Game code adds bodies and segments.
   PB.makeWorld = function () {
     var p = PB.config.physics;
     return {
@@ -45,24 +42,26 @@
       restThreshold: p.restThreshold,
       skin: p.skin,
       maxMoveIters: p.maxMoveIters,
+      maxSpeed: p.maxSpeed,
       bodies: [],
-      segments: [],
+      segments: [],   // static line segments (walls, slingshots, drop targets)
+      flippers: [],    // rotating flipper segments (moving surfaces)
+      circles: [],     // circular obstacles (pop bumpers)
       rng: PB.makeRNG(PB.config.sim.seed),
     };
   };
 
-  // A dynamic circular body (the ball).
   PB.makeBall = function (x, y, radius) {
     return {
       pos: { x: x, y: y },
-      prev: { x: x, y: y },   // previous-step position for render interpolation
+      prev: { x: x, y: y },
       vel: { x: 0, y: 0 },
       radius: radius,
       active: true,
+      contacts: [],
     };
   };
 
-  // A static collision segment from a to b. Optional per-segment material.
   PB.makeSegment = function (ax, ay, bx, by, opts) {
     opts = opts || {};
     return {
@@ -70,6 +69,11 @@
       b: { x: bx, y: by },
       restitution: opts.restitution,
       friction: opts.friction,
+      kick: opts.kick || 0,
+      kind: opts.kind || 'wall',
+      score: opts.score || 0,
+      active: opts.active !== false,
+      lit: 0,
     };
   };
 

@@ -1,50 +1,46 @@
 // collision.js - swept (continuous) collision of a moving circle against static
-// line segments, plus the bounce response. Continuous detection is mandatory:
-// the ball is small and fast, so a discrete overlap test would let it tunnel
-// straight through thin walls. We instead find the earliest time of impact along
-// the ball's path each step and resolve contacts one at a time.
+// line segments, rotating flipper segments, and circular bumpers, plus the
+// bounce response. Continuous detection is mandatory: the ball is small and
+// fast, so a discrete overlap test would let it tunnel through thin walls. We
+// find the earliest time of impact along the ball's path each step and resolve
+// contacts one at a time. Moving surfaces (flippers) contribute their surface
+// velocity to the response, which is what gives flippers their kick.
 
 (function (PB) {
   'use strict';
 
   // Time of impact of a circle (center C, radius r) swept by displacement D
-  // against the segment A..B. Returns { t, nx, ny } with t in [0, 1] (fraction
-  // of D consumed) and a unit contact normal pointing back toward the ball, or
-  // null if no contact happens within this displacement.
+  // against the segment A..B. Returns { t, nx, ny } (t in [0,1], unit normal
+  // pointing back toward the ball) or null.
   function toiSegment(Cx, Cy, Dx, Dy, Ax, Ay, Bx, By, r) {
     var best = null;
-
-    // Flat side of the segment (treated as an inflated slab of half-width r).
     var ex = Bx - Ax, ey = By - Ay;
     var elen = Math.sqrt(ex * ex + ey * ey);
     if (elen > 1e-9) {
-      var ux = ex / elen, uy = ey / elen;     // along the segment
-      var nx = -uy, ny = ux;                   // segment normal
-      var d0 = (Cx - Ax) * nx + (Cy - Ay) * ny; // signed distance to the line
+      var ux = ex / elen, uy = ey / elen;
+      var nx = -uy, ny = ux;
+      var d0 = (Cx - Ax) * nx + (Cy - Ay) * ny;
       var sign = d0 >= 0 ? 1 : -1;
-      var Nx = nx * sign, Ny = ny * sign;      // normal on the ball's side
-      var gap = Math.abs(d0) - r;              // ball-surface gap to the line
-      var approach = -(Dx * Nx + Dy * Ny);     // closing speed toward the line
+      var Nx = nx * sign, Ny = ny * sign;
+      var gap = Math.abs(d0) - r;
+      var approach = -(Dx * Nx + Dy * Ny);
       if (approach > 1e-9) {
         var t = gap / approach;
-        if (t < 0) t = 0;                      // already grazing: resolve now
+        if (t < 0) t = 0;
         if (t <= 1) {
           var ccx = Cx + Dx * t, ccy = Cy + Dy * t;
-          var q = (ccx - Ax) * ux + (ccy - Ay) * uy; // projection along segment
-          if (q >= 0 && q <= elen) {
-            best = { t: t, nx: Nx, ny: Ny };
-          }
+          var q = (ccx - Ax) * ux + (ccy - Ay) * uy;
+          if (q >= 0 && q <= elen) best = { t: t, nx: Nx, ny: Ny };
         }
       }
     }
-
-    // Rounded end caps: sweep the moving point against a circle of radius r at
-    // each endpoint (this is how a real capsule cast handles the corners).
     best = capToi(Cx, Cy, Dx, Dy, Ax, Ay, r, best);
     best = capToi(Cx, Cy, Dx, Dy, Bx, By, r, best);
     return best;
   }
 
+  // Sweep the moving point against a circle of radius r centered at P. Used for
+  // segment end caps and (with r = ballR + bumperR) for circular bumpers.
   function capToi(Cx, Cy, Dx, Dy, Px, Py, r, best) {
     var fx = Cx - Px, fy = Cy - Py;
     var a = Dx * Dx + Dy * Dy;
@@ -56,11 +52,8 @@
     var sq = Math.sqrt(disc);
     var t1 = (-b - sq) / (2 * a);
     var cand = null;
-    if (t1 >= -1e-6 && t1 <= 1) {
-      cand = t1 < 0 ? 0 : t1;
-    } else if (c < 0) {
-      cand = 0; // center already within the cap: resolve immediately
-    }
+    if (t1 >= -1e-6 && t1 <= 1) cand = t1 < 0 ? 0 : t1;
+    else if (c < 0) cand = 0;
     if (cand === null) return best;
     if (best && best.t <= cand) return best;
     var ccx = Cx + Dx * cand, ccy = Cy + Dy * cand;
@@ -69,31 +62,62 @@
     return { t: cand, nx: nx / nl, ny: ny / nl };
   }
 
-  // Move one body through the world for this step, resolving every contact along
-  // the way. We consume the displacement in fractions: travel to the first hit,
-  // reflect the velocity, then continue with the remaining fraction. Bounded
-  // iterations guard against pathological geometry.
+  // Surface velocity of a rotating flipper at world point (px, py).
+  function flipperSurfaceVel(fl, px, py) {
+    var rx = px - fl.pivot.x, ry = py - fl.pivot.y;
+    return { x: -fl.omega * ry, y: fl.omega * rx };
+  }
+
+  function clampSpeed(body, maxSpeed) {
+    var s2 = body.vel.x * body.vel.x + body.vel.y * body.vel.y;
+    if (s2 > maxSpeed * maxSpeed) {
+      var s = Math.sqrt(s2);
+      body.vel.x = body.vel.x / s * maxSpeed;
+      body.vel.y = body.vel.y / s * maxSpeed;
+    }
+  }
+
   PB.collision = {
     toiSegment: toiSegment,
+    capToi: capToi,
+    flipperSurfaceVel: flipperSurfaceVel,
 
     moveBody: function (world, body, dt) {
-      var segs = world.segments;
       var r = body.radius;
       var Vx = body.vel.x, Vy = body.vel.y;
       var remaining = 1.0;
       var iter = 0;
+      body.contacts = [];
 
       while (remaining > 1e-5 && iter < world.maxMoveIters) {
         iter++;
         var Dx = Vx * dt * remaining;
         var Dy = Vy * dt * remaining;
 
-        var hit = null, hitSeg = null;
-        for (var i = 0; i < segs.length; i++) {
-          var s = segs[i];
-          var h = toiSegment(body.pos.x, body.pos.y, Dx, Dy,
-                             s.a.x, s.a.y, s.b.x, s.b.y, r);
-          if (h && (hit === null || h.t < hit.t)) { hit = h; hitSeg = s; }
+        var hit = null, hitSeg = null, hitFlip = null, hitCircle = null;
+        var i, h, s;
+
+        var segs = world.segments;
+        for (i = 0; i < segs.length; i++) {
+          s = segs[i];
+          if (s.active === false) continue;
+          h = toiSegment(body.pos.x, body.pos.y, Dx, Dy, s.a.x, s.a.y, s.b.x, s.b.y, r);
+          if (h && (hit === null || h.t < hit.t)) { hit = h; hitSeg = s; hitFlip = null; hitCircle = null; }
+        }
+
+        var flips = world.flippers;
+        for (i = 0; i < flips.length; i++) {
+          var f = flips[i];
+          h = toiSegment(body.pos.x, body.pos.y, Dx, Dy, f.a.x, f.a.y, f.b.x, f.b.y, r);
+          if (h && (hit === null || h.t < hit.t)) { hit = h; hitSeg = null; hitFlip = f; hitCircle = null; }
+        }
+
+        var circles = world.circles;
+        for (i = 0; i < circles.length; i++) {
+          var cc = circles[i];
+          if (cc.active === false) continue;
+          h = capToi(body.pos.x, body.pos.y, Dx, Dy, cc.x, cc.y, r + cc.r, null);
+          if (h && (hit === null || h.t < hit.t)) { hit = h; hitSeg = null; hitFlip = null; hitCircle = cc; }
         }
 
         if (hit === null) {
@@ -102,34 +126,57 @@
           break;
         }
 
-        // Advance to the contact point.
         body.pos.x += Dx * hit.t;
         body.pos.y += Dy * hit.t;
 
-        var rest = hitSeg.restitution != null ? hitSeg.restitution : world.restitution;
-        var fric = hitSeg.friction != null ? hitSeg.friction : world.friction;
+        // Material and surface motion of whatever we hit.
+        var rest, fric = world.friction, kick = 0, surfx = 0, surfy = 0;
+        var px = body.pos.x - hit.nx * r;   // contact point on the surface
+        var py = body.pos.y - hit.ny * r;
 
-        // Split velocity into normal and tangential parts.
-        var vn = Vx * hit.nx + Vy * hit.ny;     // along contact normal
-        var tnx = -hit.ny, tny = hit.nx;        // tangent
-        var vt = Vx * tnx + Vy * tny;
+        if (hitFlip) {
+          rest = PB.config.flippers.restitution;
+          var sv = flipperSurfaceVel(hitFlip, px, py);
+          surfx = sv.x; surfy = sv.y;
+        } else if (hitCircle) {
+          rest = hitCircle.restitution != null ? hitCircle.restitution : world.restitution;
+          kick = hitCircle.kick || 0;
+        } else {
+          rest = hitSeg.restitution != null ? hitSeg.restitution : world.restitution;
+          if (hitSeg.friction != null) fric = hitSeg.friction;
+          kick = hitSeg.kick || 0;
+        }
 
-        var nvn = vn < 0 ? -rest * vn : vn;     // bounce only if moving inward
-        if (Math.abs(nvn) < world.restThreshold) nvn = 0; // let it rest
+        // Reflect in the surface's reference frame so flipper motion transfers.
+        var rvx = Vx - surfx, rvy = Vy - surfy;
+        var vn = rvx * hit.nx + rvy * hit.ny;
+        var tnx = -hit.ny, tny = hit.nx;
+        var vt = rvx * tnx + rvy * tny;
+
+        var nvn = vn < 0 ? -rest * vn : vn;
+        var slow = Math.abs(nvn) < world.restThreshold;
+        var flipperMoving = hitFlip && Math.abs(hitFlip.omega) > 2;
+        if (slow && !flipperMoving) nvn = 0;
         vt *= (1 - fric);
 
-        Vx = hit.nx * nvn + tnx * vt;
-        Vy = hit.ny * nvn + tny * vt;
+        rvx = hit.nx * nvn + tnx * vt;
+        rvy = hit.ny * nvn + tny * vt;
+        Vx = rvx + surfx + hit.nx * kick;
+        Vy = rvy + surfy + hit.ny * kick;
 
-        // Nudge a hair off the surface so the next pass does not re-hit at t=0.
+        body.contacts.push({
+          seg: hitSeg, flip: hitFlip, circle: hitCircle,
+          x: px, y: py, speed: -vn,
+        });
+
         body.pos.x += hit.nx * world.skin;
         body.pos.y += hit.ny * world.skin;
-
         remaining *= (1 - hit.t);
       }
 
       body.vel.x = Vx;
       body.vel.y = Vy;
+      clampSpeed(body, world.maxSpeed);
     },
   };
 
