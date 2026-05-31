@@ -46,6 +46,10 @@
     slingshots: { restitution: 0.75, kick: 260, litSeconds: 0.14 },
     dropTargets: { resetSeconds: 2.5 },
 
+    // Standup targets (mission select / start / multiball lock). Positions are
+    // in the table data; this is their physics + debounce.
+    standups: { restitution: 0.5, kick: 60, litSeconds: 0.2, cooldown: 0.3 },
+
     tilt: {
       nudgeImpulse: 150,
       nudgeBob: 0.34,
@@ -60,6 +64,7 @@
       slingshot: 20,
       dropTarget: 500,
       dropBank: 2000,
+      standup: 250,
     },
 
     // Game rules.
@@ -69,6 +74,21 @@
       multiplierCap: 5,
       messageSeconds: 1.8,
       maxHighScores: 10,
+    },
+
+    // Missions and multiball. Jackpots are awarded raw (no multiplier). The
+    // three v1 missions: Warp Survey (hit bumpers), Target Lock (clear the drop
+    // bank), Rescue (hit the rescue target). Multiball locks via the lock target.
+    missions: {
+      lockNeed: 3,                 // lock hits to start multiball
+      warp:   { need: 8, time: 25, jackpot: 25000 },
+      bank:   { need: 1, time: 30, jackpot: 30000 },
+      rescue: { need: 3, time: 20, jackpot: 20000 },
+      // Fixed spawn states for the two extra multiball balls (deterministic).
+      mbSpawns: [
+        { x: 250, y: 430, vx: -120, vy: -210 },
+        { x: 350, y: 430, vx:  120, vy: -210 },
+      ],
     },
 
     starfield: {
@@ -90,8 +110,8 @@
       dim: 'rgba(8,12,28,0.72)',
     },
 
-    version: '0.3.0',
-    phase: 3,
+    version: '0.4.0',
+    phase: 4,
   };
 
 })(window.PB = window.PB || {});

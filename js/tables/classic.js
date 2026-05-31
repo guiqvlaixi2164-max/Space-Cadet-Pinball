@@ -48,6 +48,18 @@
     // Vertical drop-target bank.
     dropTargets: { x: 472, ys: [300, 332, 364, 396], height: 26 },
 
+    // Standup targets. Three selectors across the top choose a mission; the
+    // START gate on the left orbit begins the selected mission; the LOCK target
+    // on the right banks balls toward multiball. role + id drive the mission
+    // state machine in js/game/missions.js. [ax, ay] to [bx, by].
+    standups: [
+      { role: 'select', id: 0, name: 'WARP',   a: [150, 100], b: [178, 100] },
+      { role: 'select', id: 1, name: 'TARGET', a: [286, 92],  b: [314, 92] },
+      { role: 'select', id: 2, name: 'RESCUE', a: [422, 100], b: [450, 100] },
+      { role: 'start',  id: 3, name: 'START',  a: [58, 196],  b: [58, 226] },
+      { role: 'lock',   id: 4, name: 'LOCK',   a: [508, 196], b: [508, 226] },
+    ],
+
     // Flippers. Angles in radians from +x (y down). Left presses by decreasing
     // its angle, right by increasing.
     flippers: {

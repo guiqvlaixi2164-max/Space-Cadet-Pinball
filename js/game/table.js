@@ -43,6 +43,27 @@
       sim.bank = PB.Target.createBank(def.dropTargets);
       for (i = 0; i < sim.bank.targets.length; i++) world.segments.push(sim.bank.targets[i]);
 
+      // Standup targets (mission select / start / multiball lock).
+      sim.standups = [];
+      if (def.standups) {
+        var stOpts = {
+          kind: 'standup',
+          restitution: cfg.standups.restitution,
+          kick: cfg.standups.kick,
+          score: cfg.score.standup,
+        };
+        for (i = 0; i < def.standups.length; i++) {
+          var sd = def.standups[i];
+          var seg = S(sd.a[0], sd.a[1], sd.b[0], sd.b[1], stOpts);
+          seg.role = sd.role;
+          seg.id = sd.id;
+          seg.name = sd.name;
+          seg.cooldown = 0;
+          world.segments.push(seg);
+          sim.standups.push(seg);
+        }
+      }
+
       // Flippers.
       sim.left = PB.Flipper.create(def.flippers.left);
       sim.right = PB.Flipper.create(def.flippers.right);

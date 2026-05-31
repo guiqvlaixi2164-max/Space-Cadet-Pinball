@@ -35,12 +35,32 @@
 
     spawnBall: function (sim) {
       var b = sim.ball;
+      // Discard any extra (multiball) balls; only the primary ball returns.
+      sim.world.bodies.length = 0;
+      sim.world.bodies.push(b);
       b.pos.x = sim.spawn.x; b.pos.y = sim.spawn.y;
       b.prev.x = sim.spawn.x; b.prev.y = sim.spawn.y;
       b.vel.x = 0; b.vel.y = 0;
       b.active = true;
       sim.tilt.tilted = false;
       sim.tilt.bob = 0;
+    },
+
+    // Add an extra ball in play (multiball). prev is back-set from the velocity
+    // so the first swept step is consistent. Returns the new ball.
+    addBall: function (sim, x, y, vx, vy) {
+      var b = PB.makeBall(x, y, cfg.physics.ballRadius);
+      b.vel.x = vx; b.vel.y = vy;
+      b.prev.x = x - vx / cfg.sim.hz; b.prev.y = y - vy / cfg.sim.hz;
+      sim.world.bodies.push(b);
+      return b;
+    },
+
+    // Remove a (drained) ball from play. Keeps sim.ball pointing at a live ball.
+    removeBall: function (sim, b) {
+      var arr = sim.world.bodies, k = arr.indexOf(b);
+      if (k >= 0) arr.splice(k, 1);
+      if (sim.ball === b) sim.ball = arr[0];
     },
 
     inLane: function (sim) {
@@ -67,25 +87,39 @@
       PB.Flipper.update(sim.right, !!input.flipperRight && !tilt.tilted, dt);
 
       PB.step(world, dt);
-      PB.Flipper.resolveOverlap(world, sim.left, ball);
-      PB.Flipper.resolveOverlap(world, sim.right, ball);
 
-      var c, i;
-      for (i = 0; i < ball.contacts.length; i++) {
-        c = ball.contacts[i];
-        if (c.circle) {
-          PB.Bumper.hit(c.circle);
-          sim.events.push({ type: 'bumper', circle: c.circle });
-        } else if (c.seg) {
-          if (c.seg.kind === 'slingshot') {
-            c.seg.lit = cfg.slingshots.litSeconds;
-            sim.events.push({ type: 'slingshot', seg: c.seg });
-          } else if (c.seg.kind === 'drop') {
-            if (PB.Target.drop(c.seg)) {
-              sim.events.push({ type: 'drop', seg: c.seg });
-              if (PB.Target.allDown(sim.bank)) {
-                sim.events.push({ type: 'dropbank' });
-                sim.bank.resetTimer = cfg.dropTargets.resetSeconds;
+      var bodies = world.bodies, c, i, bi, bb;
+      // Flipper overlap and contact handling run for every ball in play.
+      for (bi = 0; bi < bodies.length; bi++) {
+        bb = bodies[bi];
+        PB.Flipper.resolveOverlap(world, sim.left, bb);
+        PB.Flipper.resolveOverlap(world, sim.right, bb);
+      }
+      for (bi = 0; bi < bodies.length; bi++) {
+        bb = bodies[bi];
+        if (!bb.active) continue;
+        for (i = 0; i < bb.contacts.length; i++) {
+          c = bb.contacts[i];
+          if (c.circle) {
+            PB.Bumper.hit(c.circle);
+            sim.events.push({ type: 'bumper', circle: c.circle });
+          } else if (c.seg) {
+            if (c.seg.kind === 'slingshot') {
+              c.seg.lit = cfg.slingshots.litSeconds;
+              sim.events.push({ type: 'slingshot', seg: c.seg });
+            } else if (c.seg.kind === 'drop') {
+              if (PB.Target.drop(c.seg)) {
+                sim.events.push({ type: 'drop', seg: c.seg });
+                if (PB.Target.allDown(sim.bank)) {
+                  sim.events.push({ type: 'dropbank' });
+                  sim.bank.resetTimer = cfg.dropTargets.resetSeconds;
+                }
+              }
+            } else if (c.seg.kind === 'standup') {
+              if (c.seg.cooldown <= 0) {            // debounce repeat contacts
+                c.seg.cooldown = cfg.standups.cooldown;
+                c.seg.lit = cfg.standups.litSeconds;
+                sim.events.push({ type: 'standup', seg: c.seg });
               }
             }
           }
@@ -93,18 +127,28 @@
       }
 
       for (i = 0; i < world.segments.length; i++) {
-        if (world.segments[i].lit > 0) {
-          world.segments[i].lit -= dt;
-          if (world.segments[i].lit < 0) world.segments[i].lit = 0;
-        }
+        var sg = world.segments[i];
+        if (sg.lit > 0) { sg.lit -= dt; if (sg.lit < 0) sg.lit = 0; }
+        if (sg.cooldown > 0) { sg.cooldown -= dt; if (sg.cooldown < 0) sg.cooldown = 0; }
       }
       for (i = 0; i < world.circles.length; i++) PB.Bumper.update(world.circles[i], dt);
       PB.Target.update(sim.bank, dt);
 
-      if (ball.active && (ball.pos.y > cfg.physics.drainY ||
-          ball.pos.x < -40 || ball.pos.x > cfg.view.width + 40)) {
-        ball.active = false;
-        sim.events.push({ type: 'drain' });
+      // Drain: a lost ball during multiball just leaves play (no life); the last
+      // ball draining is the real drain the game-rules layer reacts to.
+      for (i = bodies.length - 1; i >= 0; i--) {
+        bb = bodies[i];
+        if (bb.active && (bb.pos.y > cfg.physics.drainY ||
+            bb.pos.x < -40 || bb.pos.x > cfg.view.width + 40)) {
+          bb.active = false;
+          if (bodies.length > 1) {
+            bodies.splice(i, 1);
+            if (sim.ball === bb) sim.ball = bodies[0];
+            sim.events.push({ type: 'balldrain' });
+          } else {
+            sim.events.push({ type: 'drain' });
+          }
+        }
       }
     },
   };
@@ -121,6 +165,7 @@
         settings: settings,
         scoring: PB.Scoring.create(),
         sim: PB.sim.create(),
+        missions: PB.Missions.create(),
         ballsLeft: cfg.game.balls,
         ballNumber: 1,
         ballSaveTimer: 0,
@@ -132,6 +177,7 @@
     start: function (g) {
       g.scoring = PB.Scoring.create();
       g.sim = PB.sim.create();
+      g.missions = PB.Missions.create();
       g.ballsLeft = cfg.game.balls;
       g.ballNumber = 1;
       g.ballSaveTimer = 0;
@@ -167,6 +213,7 @@
         if (e.type === 'bumper') PB.Scoring.add(g.scoring, e.circle.score);
         else if (e.type === 'slingshot') PB.Scoring.add(g.scoring, e.seg.score);
         else if (e.type === 'drop') PB.Scoring.add(g.scoring, e.seg.score);
+        else if (e.type === 'standup') PB.Scoring.add(g.scoring, e.seg.score);
         else if (e.type === 'dropbank') {
           PB.Scoring.addRaw(g.scoring, cfg.score.dropBank);
           PB.Scoring.bumpMultiplier(g.scoring, 1, cfg.game.multiplierCap);
@@ -174,7 +221,11 @@
         } else if (e.type === 'drain') {
           PB.Game.onDrain(g);
         }
+        // balldrain (a lost multiball ball) costs nothing and is ignored here.
+        PB.Missions.onEvent(g, e);
       }
+
+      PB.Missions.tick(g, dt);
 
       var promo = PB.Scoring.updateRank(g.scoring);
       if (promo) PB.Game.setMessage(g, S.promoted + promo);
@@ -286,6 +337,61 @@
       return g.state === 'gameover';
     },
 
+    missions: function () {
+      var g = PB.Game.create(PB.storage.defaults().settings);
+      PB.Game.start(g);
+      var m = g.missions;
+
+      // Select Warp Survey, start it, then satisfy the bumper objective.
+      PB.Missions.onEvent(g, { type: 'standup', seg: { role: 'select', id: 0 } });
+      var sel = m.state === 'selected' && m.selected === 0;
+      PB.Missions.onEvent(g, { type: 'standup', seg: { role: 'start', id: 3 } });
+      var act = m.state === 'active' && m.active === 0;
+      var before = g.scoring.score;
+      for (var i = 0; i < cfg.missions.warp.need; i++) {
+        PB.Missions.onEvent(g, { type: 'bumper' });
+      }
+      var done = m.state === 'idle' &&
+                 g.scoring.score >= before + cfg.missions.warp.jackpot;
+
+      // Start Rescue, then let the timer run out to verify the fail path.
+      PB.Missions.onEvent(g, { type: 'standup', seg: { role: 'select', id: 2 } });
+      PB.Missions.onEvent(g, { type: 'standup', seg: { role: 'start', id: 3 } });
+      PB.Missions.tick(g, cfg.missions.rescue.time + 1);
+      var failed = m.state === 'idle';
+
+      return sel && act && done && failed;
+    },
+
+    multiball: function () {
+      var g = PB.Game.create(PB.storage.defaults().settings);
+      PB.Game.start(g);
+      var empty = { plungerHeld: false, flipperLeft: false, flipperRight: false,
+                    nudgeL: false, nudgeR: false, nudgeU: false };
+      var expect = 1 + cfg.missions.mbSpawns.length;
+
+      for (var i = 0; i < cfg.missions.lockNeed; i++) {
+        PB.Missions.onEvent(g, { type: 'standup', seg: { role: 'lock', id: 4 } });
+      }
+      var spawned = g.missions.multiball && g.sim.world.bodies.length === expect;
+
+      // Force the extra balls (not the primary) off the table. They should drain
+      // as ball losses with no life lost, ending multiball.
+      var ballsBefore = g.ballsLeft;
+      var bodies = g.sim.world.bodies;
+      for (var j = bodies.length - 1; j >= 1; j--) {
+        bodies[j].pos.x = 300; bodies[j].pos.y = 5000;
+        bodies[j].prev.x = 300; bodies[j].prev.y = 5000;
+        bodies[j].vel.x = 0; bodies[j].vel.y = 0;
+      }
+      g.state = 'playing';
+      PB.Game.update(g, empty, 1 / cfg.sim.hz);
+      var ended = g.sim.world.bodies.length === 1 &&
+                  g.ballsLeft === ballsBefore && !g.missions.multiball;
+
+      return spawned && ended;
+    },
+
     run: function () {
       var r = {
         det: PB.selfTest.determinism(),
@@ -294,11 +400,15 @@
         rank: PB.selfTest.scoringRanks(),
         store: PB.selfTest.storage(),
         balls: PB.selfTest.ballManagement(),
+        miss: PB.selfTest.missions(),
+        multi: PB.selfTest.multiball(),
       };
-      var ok = r.det && r.tun && r.kick && r.rank && r.store && r.balls;
+      var ok = r.det && r.tun && r.kick && r.rank && r.store && r.balls &&
+               r.miss && r.multi;
       var msg = 'SELFTEST det=' + b(r.det) + ' tunnel=' + b(r.tun) +
                 ' flipper=' + b(r.kick) + ' ranks=' + b(r.rank) +
-                ' store=' + b(r.store) + ' balls=' + b(r.balls);
+                ' store=' + b(r.store) + ' balls=' + b(r.balls) +
+                ' missions=' + b(r.miss) + ' multiball=' + b(r.multi);
       function b(v) { return v ? 'OK' : 'FAIL'; }
       try { document.title = msg; } catch (e) {}
       if (window.console) console.log(msg);
@@ -388,6 +498,8 @@
         ctx.restore();
       } else if (s.kind === 'drop') {
         PB.Target.draw(ctx, s);
+      } else if (s.kind === 'standup') {
+        drawStandup(ctx, s);
       }
     }
 
@@ -395,7 +507,34 @@
     PB.Flipper.draw(ctx, sim.left);
     PB.Flipper.draw(ctx, sim.right);
     PB.Plunger.draw(ctx, sim.plunger, sim.lane.x, sim.lane.w);
-    if (sim.ball.active) PB.Ball.draw(ctx, sim.ball, app._alpha || 0);
+    for (i = 0; i < world.bodies.length; i++) {
+      if (world.bodies[i].active) PB.Ball.draw(ctx, world.bodies[i], app._alpha || 0);
+    }
+  }
+
+  // A standup target: lit (with its label) when armed by the mission state,
+  // otherwise a dim bar. Color comes from the mission state machine.
+  function drawStandup(ctx, seg) {
+    var col = PB.Missions.standupColor(app.game, seg);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 7;
+    if (col) {
+      ctx.strokeStyle = col;
+      ctx.shadowColor = col;
+      ctx.shadowBlur = app.reduced ? 0 : 14;
+    } else {
+      ctx.strokeStyle = 'rgba(120,140,180,0.35)';
+      ctx.shadowBlur = 0;
+    }
+    ctx.beginPath(); ctx.moveTo(seg.a.x, seg.a.y); ctx.lineTo(seg.b.x, seg.b.y); ctx.stroke();
+    if (col && !app.reduced) {
+      ctx.fillStyle = col;
+      ctx.font = '600 9px "Segoe UI", Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(seg.name, (seg.a.x + seg.b.x) / 2, Math.min(seg.a.y, seg.b.y) - 8);
+    }
+    ctx.restore();
   }
 
   // ---- Screen input handlers ----

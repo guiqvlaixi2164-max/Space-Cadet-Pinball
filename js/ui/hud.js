@@ -70,6 +70,32 @@
       // Tilt meter on the right edge.
       PB.Hud.drawTiltMeter(ctx, game);
 
+      // Mission status and multiball lock (top center, under the rank/multiplier).
+      var m = game.missions;
+      if (m) {
+        var S = PB.strings;
+        ctx.textAlign = 'center';
+        ctx.font = '600 13px "Segoe UI", Arial, sans-serif';
+        var defs = PB.Missions.defs();
+        if (m.state === 'selected') {
+          ctx.fillStyle = t.neonAmber;
+          ctx.fillText(defs[m.selected].name + '  -  ' + S.mHitStart, w / 2, 150);
+        } else if (m.state === 'active') {
+          var d = defs[m.active];
+          ctx.fillStyle = t.neonCyan;
+          var prog = d.objective === 'bank' ? '' : ('  ' + m.progress + '/' + m.need);
+          ctx.fillText(d.name + prog + '   ' + Math.ceil(m.timer) + 's', w / 2, 150);
+        }
+        if (m.multiball) {
+          ctx.fillStyle = t.neonMagenta;
+          ctx.font = '700 14px "Segoe UI", Arial, sans-serif';
+          ctx.fillText(S.mMultiballOn, w / 2, 170);
+        } else if (m.lock > 0) {
+          ctx.fillStyle = t.neonGreen;
+          ctx.fillText(S.mLockLabel + m.lock + '/' + cfg.missions.lockNeed, w / 2, 170);
+        }
+      }
+
       // Transient message.
       if (game.messageTimer > 0 && game.message) {
         var a = Math.min(1, game.messageTimer * 2);

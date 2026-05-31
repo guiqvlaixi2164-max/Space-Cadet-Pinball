@@ -3,6 +3,50 @@
 All notable changes to this project are documented here, one entry per phase.
 This project follows the phased build plan in `PLAN.md`.
 
+## Phase 4 - Missions and multiball
+
+Goal-driven play: select a mission with lit targets, start it, complete its
+objective for a jackpot, and bank balls toward a basic 3-ball multiball.
+
+### Added
+- `js/game/missions.js`: the mission state machine (idle, selected, active) and
+  the multiball lock sequence. Three v1 missions: Warp Survey (hit the pop
+  bumpers a set number of times), Target Lock (clear the drop-target bank), and
+  Rescue (hit the lit rescue target), each on a countdown that fails on timeout
+  and pays a raw jackpot on completion.
+- Standup targets in the table data (`js/tables/classic.js`) and builder
+  (`js/game/table.js`): three selectors choose a mission, a START gate begins the
+  selected one, and a LOCK target banks balls. Built as `kind: 'standup'`
+  collision segments with a hit debounce so one strike emits one event.
+- Basic 3-ball multiball: the third LOCK hit adds two more balls at fixed
+  (deterministic) spawn states. The simulation now tracks every ball in
+  `world.bodies`; a ball lost while others remain leaves play with no life lost,
+  and only the final ball draining costs a life.
+- `PB.sim.addBall` / `PB.sim.removeBall` and an all-balls contact, flipper, and
+  drain pass in the step. The renderer draws every active ball and the standup
+  targets (lit, with labels, when armed by the mission state).
+- HUD mission line (selected mission, active objective progress, and countdown)
+  and a multiball/lock indicator.
+- Self-test (`index.html?selftest`) adds `missions` (select, start, complete for
+  a jackpot, and timeout fail) and `multiball` (lock to start, then verify extra
+  balls drain without losing a life and multiball ends).
+
+### Changed
+- `js/config.js`: new `missions` block (lock count, per-mission needs/timers/
+  jackpots, deterministic extra-ball spawns), a `standups` physics block, and a
+  `standup` score value. Version 0.4.0, phase 4.
+- `js/main.js`: the simulation and game-rules layers route events through the
+  mission state machine and tick its timers each step; `spawnBall` discards
+  multiball balls so a new ball always starts alone.
+
+### Exit criteria
+
+Met. A player can select, start, and complete each of the three missions for
+score, and multiball triggers from the lock sequence and resolves correctly back
+to single-ball play. The self-test reports `det=OK tunnel=OK flipper=OK ranks=OK
+store=OK balls=OK missions=OK multiball=OK`. No console errors, offline via
+`file://`.
+
 ## Phase 3 - Table data, scoring, ranks, ball management
 
 A complete basic game: start screen to game over, a real score with ranks,

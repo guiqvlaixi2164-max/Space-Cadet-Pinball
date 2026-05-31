@@ -50,6 +50,20 @@
     bankCleared: 'BANK CLEARED',
     ballLabel: 'BALL ',
     launchHint: 'Hold SPACE to launch',
+
+    // Missions and multiball.
+    mWarp: 'WARP SURVEY',
+    mTarget: 'TARGET LOCK',
+    mRescue: 'RESCUE',
+    mSelected: ' SELECTED',
+    mStart: ' START',
+    mJackpot: 'JACKPOT  +',
+    mFailed: 'MISSION FAILED',
+    mLocked: 'BALL LOCKED ',
+    mMultiball: 'MULTIBALL!',
+    mHitStart: 'HIT START',
+    mLockLabel: 'LOCK ',
+    mMultiballOn: 'MULTIBALL',
   };
 
 })(window.PB = window.PB || {});
