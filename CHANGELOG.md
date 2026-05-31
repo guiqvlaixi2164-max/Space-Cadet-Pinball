@@ -3,6 +3,47 @@
 All notable changes to this project are documented here, one entry per phase.
 This project follows the phased build plan in `PLAN.md`.
 
+## Phase 1 - Physics core
+
+A ball now obeys gravity, bounces realistically off walls with no tunneling, and
+can be launched from the plunger. This is a sandbox, not a game yet.
+
+### Added
+- `js/physics/physics.js`: vector helpers, a seeded deterministic PRNG
+  (mulberry32), the world/body/segment constructors, and the per-step integrator
+  (semi-implicit Euler plus continuous collision).
+- `js/physics/collision.js`: swept circle vs line-segment collision with rounded
+  end caps (a capsule cast), resolved earliest-contact-first so a fast ball
+  cannot tunnel through thin walls. Bounce response uses per-surface restitution
+  and friction, with a resting threshold so the ball settles instead of jittering.
+- `js/engine/loop.js`: fixed-timestep accumulator (120 Hz sim) with render
+  interpolation decoupled from the display refresh rate.
+- `js/engine/input.js`: keyboard handling for the plunger (hold Space) and a
+  manual ball reset (R), read once per fixed step.
+- `js/game/plunger.js`: hold-to-charge, release-to-launch plunger that imparts an
+  upward velocity to a ball resting in the launch lane. Charge accumulates per
+  fixed step, so identical holds produce identical launches.
+- `js/game/ball.js`: interpolated, faux-3D shaded ball rendering.
+- A hardcoded Phase 1 table in `js/main.js` (outer shell, top-right deflector
+  chamfer, plunger lane and divider, and angled bottom funnels to a center drain).
+  This geometry is throwaway and moves into table data in Phase 3.
+- A self-test mode: open `index.html?selftest` to run two checks and report on
+  the canvas and in `document.title`:
+  - determinism: the same scripted input replayed twice yields an identical ball
+    path (sampled and compared);
+  - anti-tunneling: a ball launched at 80000 px/s stays inside the outer walls.
+
+### Tuning
+- Centralized new physics and plunger constants in `js/config.js` (gravity,
+  restitution, friction, resting threshold, CCD iteration cap, drain line,
+  launch speeds, charge time).
+
+### Exit criteria
+
+Met. The ball launches from the plunger, deflects into the playfield, bounces
+realistically, settles, and drains off the bottom. The self-test reports
+`det=OK tunnel=OK`. No console errors, offline via `file://`.
+
 ## Phase 0 - Skeleton and feasibility
 
 Foundation laid. The repository opens and renders, and the `file://` module
