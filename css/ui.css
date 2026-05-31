@@ -1,0 +1,16 @@
+/* ui.css - HUD and menu overlay styling.
+   Most of the HUD and menus are drawn on the canvas, but DOM-based overlays
+   (settings dialogs, focusable menu buttons for accessibility) live here.
+   Phase 0: placeholder. Populated starting in Phase 3. */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.overlay.is-open {
+  display: flex;
+}

@@ -1,0 +1,16 @@
+# OS / editor cruft
+desktop.ini
+Thumbs.db
+.DS_Store
+*.swp
+*~
+.vscode/
+.idea/
+
+# Logs / temp
+*.log
+tmp/
+
+# Test/debug screenshot artifacts
+phase*_render.png
+*_shot.png

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>Space Cadet Pinball: Deluxe Edition</title>
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/ui.css">
+</head>
+<body>
+  <div id="app">
+    <div id="stage">
+      <!-- Fixed internal resolution; CSS scales it to fit while preserving aspect ratio. -->
+      <canvas id="game" width="600" height="900" aria-label="Pinball playfield"></canvas>
+    </div>
+    <noscript>
+      <p class="noscript">This game needs JavaScript enabled.</p>
+    </noscript>
+  </div>
+
+  <!--
+    Script-loading strategy (locked in Phase 0):
+    Ordered classic <script> tags with a single global namespace window.PB.
+    Reason: ES module imports are blocked under the file:// origin in Chrome
+    (CORS, origin "null") and Safari, and are inconsistent in Firefox. Classic
+    scripts load reliably under file:// in every target browser, satisfying the
+    clone-and-play, no-build, offline-first constraints. See CHANGELOG.md Phase 0.
+
+    Load order is dependency order: config and strings first, then physics,
+    engine, game objects, tables, UI, and finally main.js as the entry point.
+    Files added in later phases are stubs today so this order never has to change.
+  -->
+  <script src="js/config.js"></script>
+  <script src="js/ui/strings.js"></script>
+
+  <script src="js/physics/physics.js"></script>
+  <script src="js/physics/collision.js"></script>
+
+  <script src="js/engine/loop.js"></script>
+  <script src="js/engine/input.js"></script>
+  <script src="js/engine/audio.js"></script>
+  <script src="js/engine/storage.js"></script>
+  <script src="js/engine/particles.js"></script>
+  <script src="js/engine/camera.js"></script>
+
+  <script src="js/game/ball.js"></script>
+  <script src="js/game/flipper.js"></script>
+  <script src="js/game/bumper.js"></script>
+  <script src="js/game/target.js"></script>
+  <script src="js/game/ramp.js"></script>
+  <script src="js/game/plunger.js"></script>
+
+  <script src="js/tables/classic.js"></script>
+  <script src="js/game/table.js"></script>
+
+  <script src="js/game/scoring.js"></script>
+  <script src="js/game/missions.js"></script>
+  <script src="js/game/transform.js"></script>
+  <script src="js/game/timedilation.js"></script>
+
+  <script src="js/ui/hud.js"></script>
+  <script src="js/ui/menus.js"></script>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,2 @@
+# Audio files go here ONLY if Web Audio synthesis proves insufficient.
+# v1 goal: all sound is synthesized at runtime, no audio files.

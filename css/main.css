@@ -1,0 +1,61 @@
+/* main.css - layout, stage, and canvas scaling.
+   The canvas has a fixed internal resolution (set in index.html); we scale it
+   with CSS to fit the viewport while preserving the portrait aspect ratio. */
+
+:root {
+  --bg-deep: #05060f;
+  --bg-near: #0b1026;
+  --neon-cyan: #36e3ff;
+  --neon-magenta: #ff4fd8;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: radial-gradient(ellipse at 50% 30%, var(--bg-near) 0%, var(--bg-deep) 70%);
+  color: #cfe9ff;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif;
+  overflow: hidden;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#stage {
+  position: relative;
+  /* Portrait pinball aspect ratio matching the canvas internal resolution. */
+  height: 100vh;
+  aspect-ratio: 600 / 900;
+  max-width: 100vw;
+}
+
+canvas#game {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: optimizeQuality;
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 1px rgba(54, 227, 255, 0.25),
+    0 0 40px rgba(54, 227, 255, 0.15),
+    0 0 90px rgba(255, 79, 216, 0.08);
+  background: #02030a;
+}
+
+.noscript {
+  color: #ff8080;
+  text-align: center;
+  padding: 2rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Heavy animated effects are gated on this in later phases. */
+}
