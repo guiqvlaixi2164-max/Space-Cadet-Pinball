@@ -1,72 +1,90 @@
-// input.js - keyboard handling. Phase 2 adds the two flippers and nudge/tilt on
-// top of the Phase 1 plunger and reset. Held states (flippers, plunger) are read
-// once per fixed step; nudges and reset are edge-triggered and consumed once, so
-// a given key sequence yields a deterministic simulation. Full remapping arrives
-// with the settings menu in Phase 3.
+// input.js - keyboard handling. Held states (flippers, plunger) are read once
+// per fixed step; menu and one-shot actions are edge-triggered and consumed once
+// so the simulation stays deterministic. Flipper and plunger bindings come from
+// the saved settings (remappable); nudge, menu navigation, pause, and reset use
+// fixed keys. A capture mode supports rebinding from the settings menu.
 
 (function (PB) {
   'use strict';
 
   PB.input = {
-    create: function () {
+    create: function (keymap) {
+      var km = keymap || { flipperLeft: 'ShiftLeft', flipperRight: 'ShiftRight', plunger: 'Space' };
+
       var state = {
+        keymap: km,
         flipperLeft: false,
         flipperRight: false,
         plungerHeld: false,
-        nudgeLQ: false,
-        nudgeRQ: false,
-        nudgeUQ: false,
-        resetQ: false,
+        _edges: { enter: false, escape: false, pause: false, reset: false,
+                  up: false, down: false, left: false, right: false },
+        _capture: null,
+
+        setKeymap: function (next) { this.keymap = next; },
+        captureKey: function (cb) { this._capture = cb; },
+
         consume: function () {
-          var out = {
-            reset: this.resetQ,
-            nudgeL: this.nudgeLQ,
-            nudgeR: this.nudgeRQ,
-            nudgeU: this.nudgeUQ,
-          };
-          this.resetQ = this.nudgeLQ = this.nudgeRQ = this.nudgeUQ = false;
+          var e = this._edges;
+          var out = { enter: e.enter, escape: e.escape, pause: e.pause, reset: e.reset,
+                      up: e.up, down: e.down, left: e.left, right: e.right };
+          e.enter = e.escape = e.pause = e.reset = e.up = e.down = e.left = e.right = false;
           return out;
         },
       };
 
-      // Default bindings. Flippers: Shift keys (with Z and / as alternates).
-      // Plunger: Space or Down. Nudge: arrows. Reset: R.
-      function down(code) {
-        switch (code) {
-          case 'ShiftLeft': case 'KeyZ': state.flipperLeft = true; return true;
-          case 'ShiftRight': case 'Slash': state.flipperRight = true; return true;
-          case 'Space': case 'ArrowDown': state.plungerHeld = true; return true;
-          case 'ArrowLeft': state.nudgeLQ = true; return true;
-          case 'ArrowRight': state.nudgeRQ = true; return true;
-          case 'ArrowUp': state.nudgeUQ = true; return true;
-          case 'KeyR': state.resetQ = true; return true;
-        }
-        return false;
-      }
-
-      function up(code) {
-        switch (code) {
-          case 'ShiftLeft': case 'KeyZ': state.flipperLeft = false; return true;
-          case 'ShiftRight': case 'Slash': state.flipperRight = false; return true;
-          case 'Space': case 'ArrowDown': state.plungerHeld = false; return true;
-        }
-        return false;
-      }
-
       var owned = {
-        ShiftLeft: 1, ShiftRight: 1, KeyZ: 1, Slash: 1, Space: 1, ArrowDown: 1,
-        ArrowLeft: 1, ArrowRight: 1, ArrowUp: 1, KeyR: 1,
+        ShiftLeft: 1, ShiftRight: 1, KeyZ: 1, Slash: 1, Space: 1, Enter: 1,
+        ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, ArrowUp: 1,
+        KeyR: 1, KeyP: 1, Escape: 1,
       };
 
-      window.addEventListener('keydown', function (e) {
-        // Repeats must not re-trigger edge actions, but should still block the
-        // default (Space/arrows scroll the page).
-        if (e.repeat) { if (owned[e.code]) e.preventDefault(); return; }
-        if (down(e.code)) e.preventDefault();
+      function applyDown(code) {
+        var km = state.keymap;
+        var hit = false;
+        if (code === km.flipperLeft || code === 'KeyZ') { state.flipperLeft = true; hit = true; }
+        if (code === km.flipperRight || code === 'Slash') { state.flipperRight = true; hit = true; }
+        if (code === km.plunger || code === 'ArrowDown') { state.plungerHeld = true; hit = true; }
+        var e = state._edges;
+        switch (code) {
+          case 'Enter': e.enter = true; hit = true; break;
+          case 'Space': e.enter = true; hit = true; break; // also confirms in menus
+          case 'Escape': e.escape = true; hit = true; break;
+          case 'KeyP': e.pause = true; hit = true; break;
+          case 'KeyR': e.reset = true; hit = true; break;
+          case 'ArrowUp': e.up = true; hit = true; break;
+          case 'ArrowDown': e.down = true; hit = true; break;
+          case 'ArrowLeft': e.left = true; hit = true; break;
+          case 'ArrowRight': e.right = true; hit = true; break;
+        }
+        return hit;
+      }
+
+      function applyUp(code) {
+        var km = state.keymap;
+        var hit = false;
+        if (code === km.flipperLeft || code === 'KeyZ') { state.flipperLeft = false; hit = true; }
+        if (code === km.flipperRight || code === 'Slash') { state.flipperRight = false; hit = true; }
+        if (code === km.plunger || code === 'ArrowDown') { state.plungerHeld = false; hit = true; }
+        return hit;
+      }
+
+      window.addEventListener('keydown', function (ev) {
+        // Rebind capture: swallow the next key and hand its code to the callback.
+        if (state._capture) {
+          ev.preventDefault();
+          var cb = state._capture;
+          state._capture = null;
+          cb(ev.code === 'Escape' ? null : ev.code); // Escape cancels (null)
+          return;
+        }
+        if (ev.repeat) { if (owned[ev.code]) ev.preventDefault(); return; }
+        if (applyDown(ev.code) || owned[ev.code]) ev.preventDefault();
       });
-      window.addEventListener('keyup', function (e) {
-        if (up(e.code)) e.preventDefault();
+
+      window.addEventListener('keyup', function (ev) {
+        if (applyUp(ev.code)) ev.preventDefault();
       });
+
       window.addEventListener('blur', function () {
         state.flipperLeft = state.flipperRight = state.plungerHeld = false;
       });

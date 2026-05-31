@@ -22,13 +22,22 @@ Tested on Chrome, Firefox, and Safari.
 Early development. See `PLAN.md` for the full phased build plan and `CHANGELOG.md`
 for what has shipped so far.
 
-- Current phase: Phase 0 (skeleton and feasibility) complete.
+- Current phase: Phase 3 (table data, scoring, ranks, ball management) complete.
+  The game is playable start to finish with menus and high scores.
 
 ## Controls
 
-Controls are added in later phases. They will be listed here and remappable
-in the in-game settings menu. (Planned defaults: left/right arrows or Shift
-keys for flippers, Space or Down arrow for the plunger.)
+Defaults (flipper and plunger keys are rebindable in Settings):
+
+- Left flipper: Left Shift (also Z)
+- Right flipper: Right Shift (also /)
+- Plunger: hold Space or Down, release to launch
+- Nudge: arrow keys (too much nudging tilts the table)
+- Pause: Esc or P
+- Reset ball (debug): R
+- Menus: arrow keys to navigate, Enter to confirm, Esc to go back
+
+From the title screen press Enter to start, or Esc for Settings.
 
 ## How it is built
 

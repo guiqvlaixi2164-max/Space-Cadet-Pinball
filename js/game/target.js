@@ -7,23 +7,22 @@
   'use strict';
 
   PB.Target = {
-    // Build a vertical bank of drop targets as collision segments.
-    createBank: function () {
-      var c = PB.config.dropTargets;
+    // Build a vertical bank of drop targets as collision segments from table data
+    // { x, ys, height }.
+    createBank: function (def) {
       var targets = [];
-      for (var i = 0; i < c.ys.length; i++) {
-        var seg = PB.makeSegment(c.x, c.ys[i], c.x, c.ys[i] + c.height, {
+      for (var i = 0; i < def.ys.length; i++) {
+        var seg = PB.makeSegment(def.x, def.ys[i], def.x, def.ys[i] + def.height, {
           kind: 'drop',
           score: PB.config.score.dropTarget,
           restitution: 0.3,
         });
-        seg.down = false; // visual state; seg.active drives collision
+        seg.down = false;
         targets.push(seg);
       }
       return { targets: targets, resetTimer: 0 };
     },
 
-    // Knock a target down. Returns true if it was standing.
     drop: function (seg) {
       if (!seg.active) return false;
       seg.active = false;
@@ -55,15 +54,15 @@
     draw: function (ctx, seg) {
       ctx.save();
       ctx.lineCap = 'round';
-      ctx.lineWidth = 8;
       if (seg.active) {
+        ctx.lineWidth = 8;
         ctx.strokeStyle = seg.lit > 0 ? PB.config.theme.neonMagenta : PB.config.theme.neonGreen;
         ctx.shadowColor = ctx.strokeStyle;
         ctx.shadowBlur = 12;
       } else {
-        ctx.strokeStyle = 'rgba(120,140,180,0.25)'; // dropped: dim stub
-        ctx.shadowBlur = 0;
         ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(120,140,180,0.25)';
+        ctx.shadowBlur = 0;
       }
       ctx.beginPath();
       ctx.moveTo(seg.a.x, seg.a.y);

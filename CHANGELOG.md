@@ -3,6 +3,47 @@
 All notable changes to this project are documented here, one entry per phase.
 This project follows the phased build plan in `PLAN.md`.
 
+## Phase 3 - Table data, scoring, ranks, ball management
+
+A complete basic game: start screen to game over, a real score with ranks,
+three balls with ball save, persistent high scores, and working menus.
+
+### Added
+- `js/tables/classic.js`: the table as a plain data object (walls, arcs,
+  slingshots, bumpers, drop bank, flipper specs, spawn, lane). Not fetched JSON.
+- `js/game/table.js`: builds the physics world and element references from a
+  table data object, replacing the inline geometry in main.js.
+- `js/game/scoring.js`: score, multiplier, and the nine-step rank ladder (Cadet
+  to Fleet Admiral) with promotion detection.
+- `js/engine/storage.js`: versioned LocalStorage schema for high scores and
+  settings, with migration and graceful fallback when storage is unavailable.
+- `js/ui/hud.js`: in-play HUD (score, rank, ball count, multiplier, ball-save
+  countdown, tilt meter, transient messages).
+- `js/ui/menus.js`: canvas-drawn attract/title with high scores, pause menu,
+  settings menu, and game over with arcade-style initials entry.
+- A simulation/event layer (`PB.sim`) that emits gameplay events; a game-rules
+  state machine (`PB.Game`) for score, ranks, three balls, ball save, and
+  game over; and a screen state machine (attract, play, pause, settings, game
+  over) in `js/main.js`.
+- Settings: volume, mute, reduced motion (freezes the starfield and drops glow),
+  colorblind palette, and rebindable flipper and plunger keys (with live capture).
+- The self-test (`index.html?selftest`) now also checks the rank ladder, the
+  high-score storage logic, and ball management driving the game to game over.
+
+### Changed
+- `js/engine/input.js` reads flipper and plunger bindings from saved settings,
+  adds menu navigation edges and a key-capture mode for rebinding.
+- `js/config.js` separates physics/gameplay tuning from geometry (now in the
+  table data) and adds a game-rules section.
+
+### Exit criteria
+
+Met. A full game runs from the start screen to game over; the score persists to
+high scores; ranks promote with on-screen notices; and the pause, settings, and
+game-over menus work. The self-test reports
+`det=OK tunnel=OK flipper=OK ranks=OK store=OK balls=OK`. No console errors,
+offline via `file://`.
+
 ## Phase 2 - Flippers and the playfield
 
 It now plays like pinball: launch, flip, hit bumpers and targets, drain. Flippers
