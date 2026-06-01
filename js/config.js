@@ -137,8 +137,32 @@
       dim: 'rgba(8,12,28,0.72)',
     },
 
-    version: '0.6.0',
-    phase: 6,
+    version: '1.0.0',
+    phase: 7,
+  };
+
+  // Color palettes. cfg.theme above is the live (active) palette; applyPalette
+  // copies one of these into it in place, so every draw call that reads
+  // cfg.theme picks up the change with no other plumbing. The colorblind palette
+  // is deuteranopia-friendly: it shifts the green and red roles (the classic
+  // confusable pair) to blue and orange while keeping cyan, amber, and magenta.
+  PB.palettes = {
+    default: {
+      neonCyan: '#36e3ff', neonMagenta: '#ff4fd8', neonAmber: '#ffc24b',
+      neonGreen: '#7CFFB2', neonRed: '#ff6b6b',
+      wall: '#5870c8', text: '#dff1ff', dim: 'rgba(8,12,28,0.72)',
+    },
+    colorblind: {
+      neonCyan: '#36e3ff', neonMagenta: '#ff8be6', neonAmber: '#ffc24b',
+      neonGreen: '#5b8dff', neonRed: '#ff9e3d',
+      wall: '#7f8fd6', text: '#dff1ff', dim: 'rgba(8,12,28,0.72)',
+    },
+  };
+
+  PB.applyPalette = function (colorblind) {
+    var p = colorblind ? PB.palettes.colorblind : PB.palettes.default;
+    var t = PB.config.theme;
+    for (var k in p) if (Object.prototype.hasOwnProperty.call(p, k)) t[k] = p[k];
   };
 
 })(window.PB = window.PB || {});

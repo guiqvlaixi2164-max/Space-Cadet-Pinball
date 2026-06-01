@@ -517,9 +517,13 @@
     }
   }
   function drawBackground(ctx, w, h) {
-    var g = ctx.createRadialGradient(w * 0.5, h * 0.3, 40, w * 0.5, h * 0.5, h * 0.8);
-    g.addColorStop(0, '#0b1026'); g.addColorStop(1, '#05060f');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    // The gradient depends only on the fixed canvas size, so build it once.
+    if (!app._bgGrad) {
+      var g = ctx.createRadialGradient(w * 0.5, h * 0.3, 40, w * 0.5, h * 0.5, h * 0.8);
+      g.addColorStop(0, '#0b1026'); g.addColorStop(1, '#05060f');
+      app._bgGrad = g;
+    }
+    ctx.fillStyle = app._bgGrad; ctx.fillRect(0, 0, w, h);
     for (var i = 0; i < app.stars.length; i++) {
       var s = app.stars[i];
       ctx.fillStyle = s.color;
@@ -550,14 +554,13 @@
     PB.timedilation.draw(ctx, sim, app.reduced);
     PB.transform.draw(ctx, sim, app.reduced);
 
-    var slingColor = app.save.settings.colorblind ? cfg.theme.neonCyan : cfg.theme.neonMagenta;
     for (i = 0; i < world.segments.length; i++) {
       s = world.segments[i];
       if (s.kind === 'slingshot') {
         ctx.save();
         ctx.lineCap = 'round'; ctx.lineWidth = 9;
         var lit = s.lit > 0;
-        ctx.strokeStyle = lit ? cfg.theme.neonAmber : slingColor;
+        ctx.strokeStyle = lit ? cfg.theme.neonAmber : cfg.theme.neonMagenta;
         ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = app.reduced ? 0 : (lit ? 22 : 10);
         ctx.beginPath(); ctx.moveTo(s.a.x, s.a.y); ctx.lineTo(s.b.x, s.b.y); ctx.stroke();
         ctx.restore();
@@ -629,7 +632,10 @@
 
     // Tilt lockout triggers on the rising edge of the tilt flag.
     var tilted = app.game.sim.tilt.tilted;
-    if (tilted && !app.prevTilted) { PB.audio.sfx('tilt'); PB.camera.shake(app.camera, 0.5); }
+    if (tilted && !app.prevTilted) {
+      PB.audio.sfx('tilt');
+      if (!app.reduced) PB.camera.shake(app.camera, 0.5);
+    }
     app.prevTilted = tilted;
 
     if (app.game.state === 'gameover') enterGameOver();
@@ -645,12 +651,14 @@
     var bx = ball ? ball.pos.x : cfg.view.width / 2;
     var by = ball ? ball.pos.y : cfg.view.height / 2;
     var ev = g.sim.events, i, x, y;
+    // Screen shake is motion, so reduced-motion suppresses it entirely.
+    function shake(amt) { if (!reduced) PB.camera.shake(app.camera, amt); }
 
     for (i = 0; i < ev.length; i++) {
       var e = ev[i];
       if (e.type === 'bumper') {
         if (!reduced) PB.particles.burst(app.particles, e.circle.x, e.circle.y, 10, T.neonAmber, 260);
-        PB.camera.shake(app.camera, 0.12);
+        shake(0.12);
       } else if (e.type === 'slingshot' || e.type === 'drop' || e.type === 'standup') {
         x = (e.seg.a.x + e.seg.b.x) / 2; y = (e.seg.a.y + e.seg.b.y) / 2;
         var col = e.type === 'drop' ? T.neonGreen : (e.type === 'standup' ? T.neonCyan : T.neonMagenta);
@@ -663,23 +671,23 @@
       var name = ae[i];
       PB.audio.sfx(name);
       if (name === 'jackpot') {
-        PB.camera.shake(app.camera, 0.8);
+        shake(0.8);
         if (!reduced) PB.particles.burst(app.particles, bx, by, 28, T.neonAmber, 360);
         PB.particles.popup(app.particles, bx, by - 18, S.jackpot, T.neonAmber);
       } else if (name === 'multiball') {
-        PB.camera.shake(app.camera, 0.7);
+        shake(0.7);
         if (!reduced) PB.particles.burst(app.particles, bx, by, 24, T.neonCyan, 340);
         PB.particles.popup(app.particles, bx, by - 18, S.mMultiball, T.neonCyan);
       } else if (name === 'rankup') {
-        PB.camera.shake(app.camera, 0.45);
+        shake(0.45);
         PB.particles.popup(app.particles, bx, by - 18, S.promoted.replace(': ', ''), T.neonGreen);
       } else if (name === 'bank') {
-        PB.camera.shake(app.camera, 0.3);
+        shake(0.3);
         PB.particles.popup(app.particles, bx, by - 18, '+' + commas(cfg.score.dropBank), T.neonGreen);
       } else if (name === 'dilate') {
-        PB.camera.shake(app.camera, 0.3);
+        shake(0.3);
       } else if (name === 'drain') {
-        PB.camera.shake(app.camera, 0.5);
+        shake(0.5);
       }
     }
   }
@@ -710,14 +718,14 @@
       if (i === 0) { st.volume = Math.max(0, Math.min(1, st.volume + dir * 0.1)); PB.audio.applySettings(st); }
       else if (i === 1) { st.muted = !st.muted; PB.audio.applySettings(st); }
       else if (i === 2) { st.reducedMotion = !st.reducedMotion; app.reduced = st.reducedMotion; }
-      else if (i === 3) st.colorblind = !st.colorblind;
+      else if (i === 3) { st.colorblind = !st.colorblind; PB.applyPalette(st.colorblind); }
       PB.storage.save(app.save);
     }
     if (e.enter) {
       if (i >= 4 && i <= 6) startRebind(i);
       else if (i === 1) { st.muted = !st.muted; PB.audio.applySettings(st); PB.storage.save(app.save); }
       else if (i === 2) { st.reducedMotion = !st.reducedMotion; app.reduced = st.reducedMotion; PB.storage.save(app.save); }
-      else if (i === 3) { st.colorblind = !st.colorblind; PB.storage.save(app.save); }
+      else if (i === 3) { st.colorblind = !st.colorblind; PB.applyPalette(st.colorblind); PB.storage.save(app.save); }
       else if (i === 7) backFromSettings();
     }
   }
@@ -872,6 +880,7 @@
 
     app.save = PB.storage.load();
     app.reduced = !!app.save.settings.reducedMotion;
+    PB.applyPalette(app.save.settings.colorblind);
     app.game = PB.Game.create(app.save.settings);
     app.input = PB.input.create(app.save.settings.keymap);
     app.particles = PB.particles.create();

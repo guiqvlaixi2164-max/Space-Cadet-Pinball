@@ -3,6 +3,47 @@
 All notable changes to this project are documented here, one entry per phase.
 This project follows the phased build plan in `PLAN.md`.
 
+## Phase 7 - v1 polish and release (v1.0.0)
+
+The accessibility and performance passes that make v1 shippable, plus the final
+docs. This is the v1.0.0 release.
+
+### Added
+- Accessibility: a deuteranopia-friendly colorblind palette (`PB.palettes` +
+  `PB.applyPalette`). cfg.theme is the live palette, and applyPalette copies the
+  chosen set into it in place, so every draw call that reads cfg.theme switches
+  with no extra plumbing; the colorblind set shifts the green and red roles to
+  blue and orange while keeping cyan, amber, and magenta. Reduced motion now also
+  suppresses screen shake (it already gated the starfield, particles, glow, and
+  zone ripples). Menu selection already shows a highlighted focus row, and the
+  flipper and plunger keys are rebindable.
+
+### Changed
+- Performance: the background radial gradient is built once and cached instead of
+  being rebuilt every frame; particles were already pooled with no per-frame
+  allocation in Phase 6. The fixed-timestep loop keeps the simulation stable and
+  decoupled from the render rate.
+- The slingshot color now comes from the active palette rather than a one-off
+  colorblind branch in the renderer.
+- Final `README.md` (controls, how to play, missions, multiball, the three
+  innovations, accessibility, and the self-test).
+
+### Cross-browser
+
+Verified headless on Chrome under `file://` (self-test all-OK, no console
+errors). The code is plain ES5-era JavaScript with a `webkitAudioContext`
+fallback, classic script tags, Canvas 2D, localStorage, and
+requestAnimationFrame only, so it is within the shared Chrome/Firefox/Safari
+baseline; Firefox and Safari were not machine-tested in this environment.
+
+### Exit criteria
+
+Met for v1.0.0: a fresh clone opens `index.html` and plays a full game from title
+to game over with persistent high scores, working menus, audio, the three
+innovations, and the accessibility options, with no console errors on a `file://`
+load. Self-test: `det=OK tunnel=OK flipper=OK ranks=OK store=OK balls=OK
+missions=OK multiball=OK dilation=OK transform=OK`.
+
 ## Phase 6 - The three v1 innovations
 
 This stops being a clone and becomes "Deluxe." All three signature innovations
