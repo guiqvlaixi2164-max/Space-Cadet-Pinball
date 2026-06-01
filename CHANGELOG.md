@@ -3,6 +3,48 @@
 All notable changes to this project are documented here, one entry per phase.
 This project follows the phased build plan in `PLAN.md`.
 
+## Phase 6 - The three v1 innovations
+
+This stops being a clone and becomes "Deluxe." All three signature innovations
+are in, plus a polish pass (pooled particles, screen shake, score popups).
+
+### Added
+- Innovation 1, Dynamic Table Transformation (`js/game/transform.js`): the table
+  reconfigures between Station and Asteroid Field modes. Completing a mission
+  warps the table; the pop bumpers glide to a new formation and resize, and two
+  deflector walls deploy by growing out from a point, all eased over a fixed
+  duration. The morph is driven from the fixed-step update and every body
+  position is a pure function of one progress value, so it stays deterministic
+  and the swept collision keeps working against the moving bodies.
+- Innovation 2, Time Dilation Zone (`js/game/timedilation.js`): a circular zone
+  holds a charge meter that fills from bumper and slingshot hits. Once full,
+  rolling a ball into the zone activates slow motion for that ball: its per-body
+  `dtScale` drops so it integrates in slowed sim-time while the rest of the table
+  runs at full speed. The meter drains while active. Scaling time (not velocity)
+  in `PB.step` keeps energy intact, and the whole thing is a pure function of the
+  charge, ball positions, and zone, so determinism holds. Animated ripple visual.
+- Innovation 3, Layered Dynamic Music: finalized in Phase 5 and confirmed wired
+  to game state (pad in menus, + bass in play, + drums on a mission, + lead on
+  multiball).
+- Polish: `js/engine/particles.js` (a pooled spark + score-popup system with no
+  per-frame allocation), `js/engine/camera.js` (trauma-model screen shake driven
+  by sine, never the sim PRNG), neon glow on the new elements, and easing score
+  popups. Particle bursts and shake fire on hits, jackpots, multiball, rank-ups,
+  and drains, and are gated behind the reduced-motion setting.
+- `js/config.js` `transform` and `dilation` tuning blocks, with the zone and
+  per-mode geometry in the table data (`js/tables/classic.js`).
+- Self-test adds `dilation` (a primed ball entering the zone slows and drops its
+  dtScale) and `transform` (toggling morphs bumper 0 to its Asteroid position and
+  deploys a deflector, and toggling back restores Station exactly).
+
+### Exit criteria
+
+Met. All three innovations work and read clearly on screen (verified by a
+playfield capture showing Asteroid mode with deployed deflectors, the active
+dilation zone with ripples, and particle/popup feedback). The self-test reports
+`det=OK ... dilation=OK transform=OK`, confirming the new physics stayed
+deterministic, with no console errors on a normal `file://` load.
+
 ## Phase 5 - Audio
 
 It now sounds like a deluxe arcade machine. Every key event has a synthesized

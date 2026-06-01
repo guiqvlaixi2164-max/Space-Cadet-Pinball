@@ -91,6 +91,22 @@
       ],
     },
 
+    // Innovation 1: Dynamic Table Transformation. Seconds for a full morph
+    // between Station and Asteroid Field layouts (bumpers relocate, deflectors
+    // deploy). The geometry of each mode lives in the table data.
+    transform: { duration: 1.3 },
+
+    // Innovation 2: Time Dilation Zone. The zone geometry is in the table data;
+    // this is its tuning. slowScale is the per-ball time scale inside an active
+    // zone; the meter charges from bumper/slingshot hits and drains while active.
+    dilation: {
+      slowScale: 0.34,
+      chargePerBumper: 0.16,
+      chargePerSling: 0.08,
+      drainPerSecond: 0.4,
+      rippleSpeed: 3.2,
+    },
+
     // Audio. master is the ceiling under the user volume; the music/sfx levels
     // balance the two buses; bpm sets the music tempo; layerFade is the seconds
     // a music layer takes to ramp in or out when the intensity changes.
@@ -121,8 +137,8 @@
       dim: 'rgba(8,12,28,0.72)',
     },
 
-    version: '0.5.0',
-    phase: 5,
+    version: '0.6.0',
+    phase: 6,
   };
 
 })(window.PB = window.PB || {});

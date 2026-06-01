@@ -86,6 +86,12 @@
       PB.Flipper.update(sim.left, !!input.flipperLeft && !tilt.tilted, dt);
       PB.Flipper.update(sim.right, !!input.flipperRight && !tilt.tilted, dt);
 
+      // Innovations advance the world for this step before integration: the
+      // table transformation repositions bodies, and time dilation stamps each
+      // ball's dtScale (and may emit a 'dilate' event on activation).
+      PB.transform.update(sim, dt);
+      PB.timedilation.preStep(sim);
+
       PB.step(world, dt);
 
       var bodies = world.bodies, c, i, bi, bb;
@@ -150,6 +156,9 @@
           }
         }
       }
+
+      // Time-dilation charge/drain reads this step's events, so it runs last.
+      PB.timedilation.postStep(sim, dt);
     },
   };
 
@@ -225,6 +234,7 @@
         else if (e.type === 'standup') { PB.Scoring.add(g.scoring, e.seg.score); PB.Game.cue(g, 'standup'); }
         else if (e.type === 'launch') PB.Game.cue(g, 'plunger');
         else if (e.type === 'balldrain') PB.Game.cue(g, 'balldrain');
+        else if (e.type === 'dilate') PB.Game.cue(g, 'dilate');
         else if (e.type === 'dropbank') {
           PB.Scoring.addRaw(g.scoring, cfg.score.dropBank);
           PB.Scoring.bumpMultiplier(g.scoring, 1, cfg.game.multiplierCap);
@@ -405,6 +415,36 @@
       return spawned && ended;
     },
 
+    // Innovation 2: a primed ball entering the zone activates slow motion (its
+    // dtScale drops) and moves much less in a step than it otherwise would.
+    dilation: function () {
+      var sim = PB.sim.create(), dt = 1 / cfg.sim.hz, z = sim.dilation.zone;
+      sim.dilation.charge = 1;
+      var b = sim.ball;
+      b.pos.x = z.x; b.pos.y = z.y; b.prev.x = z.x; b.prev.y = z.y;
+      b.vel.x = 0; b.vel.y = 300;
+      PB.sim.step(sim, {}, dt);
+      var active = sim.dilation.active === true;
+      var scaled = Math.abs(b.dtScale - cfg.dilation.slowScale) < 1e-9;
+      var slowed = (b.pos.y - z.y) < 300 * dt * 0.6;   // vs ~300*dt undilated
+      return active && scaled && slowed;
+    },
+
+    // Innovation 1: toggling the table morphs bumper 0 to its Asteroid position
+    // and deploys a deflector, and toggling back restores Station exactly.
+    transform: function () {
+      var sim = PB.sim.create(), dt = 1 / cfg.sim.hz, empty = {};
+      var m = sim.transform.bumpers[0], d0 = sim.transform.deflectors[0];
+      var steps = Math.ceil(cfg.transform.duration / dt) + 20, i;
+      PB.transform.toggle(sim);
+      for (i = 0; i < steps; i++) PB.sim.step(sim, empty, dt);
+      var atAlt = Math.abs(m.body.x - m.alt.x) < 0.5 && d0.seg.active === true;
+      PB.transform.toggle(sim);
+      for (i = 0; i < steps; i++) PB.sim.step(sim, empty, dt);
+      var atHome = Math.abs(m.body.x - m.home.x) < 0.5 && d0.seg.active === false;
+      return atAlt && atHome;
+    },
+
     run: function () {
       var r = {
         det: PB.selfTest.determinism(),
@@ -415,13 +455,16 @@
         balls: PB.selfTest.ballManagement(),
         miss: PB.selfTest.missions(),
         multi: PB.selfTest.multiball(),
+        dil: PB.selfTest.dilation(),
+        trans: PB.selfTest.transform(),
       };
       var ok = r.det && r.tun && r.kick && r.rank && r.store && r.balls &&
-               r.miss && r.multi;
+               r.miss && r.multi && r.dil && r.trans;
       var msg = 'SELFTEST det=' + b(r.det) + ' tunnel=' + b(r.tun) +
                 ' flipper=' + b(r.kick) + ' ranks=' + b(r.rank) +
                 ' store=' + b(r.store) + ' balls=' + b(r.balls) +
-                ' missions=' + b(r.miss) + ' multiball=' + b(r.multi);
+                ' missions=' + b(r.miss) + ' multiball=' + b(r.multi) +
+                ' dilation=' + b(r.dil) + ' transform=' + b(r.trans);
       function b(v) { return v ? 'OK' : 'FAIL'; }
       try { document.title = msg; } catch (e) {}
       if (window.console) console.log(msg);
@@ -435,6 +478,7 @@
 
   var app = {
     canvas: null, ctx: null, input: null, game: null,
+    particles: null, camera: null,
     save: null, stars: [], screen: 'attract',
     menuIndex: 0, settingsFrom: 'attract',
     capturing: false, capIdx: -1,
@@ -494,11 +538,17 @@
     ctx.beginPath();
     for (var i = 0; i < world.segments.length; i++) {
       var s = world.segments[i];
-      if (s.kind !== 'wall') continue;
+      // Morph deflectors (drawn by PB.transform) and retracted walls are skipped.
+      if (s.kind !== 'wall' || s.morph || s.active === false) continue;
       ctx.moveTo(s.a.x, s.a.y); ctx.lineTo(s.b.x, s.b.y);
     }
     ctx.stroke();
     ctx.restore();
+
+    // Innovations: the time-dilation zone sits under the elements; the
+    // transformation deflectors render in their own neon style.
+    PB.timedilation.draw(ctx, sim, app.reduced);
+    PB.transform.draw(ctx, sim, app.reduced);
 
     var slingColor = app.save.settings.colorblind ? cfg.theme.neonCyan : cfg.theme.neonMagenta;
     for (i = 0; i < world.segments.length; i++) {
@@ -574,16 +624,64 @@
       nudgeL: e.left, nudgeR: e.right, nudgeU: e.up,
     }, dt);
 
-    // Game-logic cues queued during the update.
-    var ae = app.game.audioEvents;
-    for (var i = 0; i < ae.length; i++) PB.audio.sfx(ae[i]);
+    // Sound + particles + screen shake from this step's events and cues.
+    reactToPlay();
 
     // Tilt lockout triggers on the rising edge of the tilt flag.
     var tilted = app.game.sim.tilt.tilted;
-    if (tilted && !app.prevTilted) PB.audio.sfx('tilt');
+    if (tilted && !app.prevTilted) { PB.audio.sfx('tilt'); PB.camera.shake(app.camera, 0.5); }
     app.prevTilted = tilted;
 
     if (app.game.state === 'gameover') enterGameOver();
+  }
+
+  function commas(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+  // Translate the step's physical contacts and queued cues into audio, pooled
+  // particles, and screen shake. Heavy bursts are gated behind reduced motion.
+  function reactToPlay() {
+    var g = app.game, reduced = app.reduced, T = cfg.theme;
+    var ball = g.sim.ball;
+    var bx = ball ? ball.pos.x : cfg.view.width / 2;
+    var by = ball ? ball.pos.y : cfg.view.height / 2;
+    var ev = g.sim.events, i, x, y;
+
+    for (i = 0; i < ev.length; i++) {
+      var e = ev[i];
+      if (e.type === 'bumper') {
+        if (!reduced) PB.particles.burst(app.particles, e.circle.x, e.circle.y, 10, T.neonAmber, 260);
+        PB.camera.shake(app.camera, 0.12);
+      } else if (e.type === 'slingshot' || e.type === 'drop' || e.type === 'standup') {
+        x = (e.seg.a.x + e.seg.b.x) / 2; y = (e.seg.a.y + e.seg.b.y) / 2;
+        var col = e.type === 'drop' ? T.neonGreen : (e.type === 'standup' ? T.neonCyan : T.neonMagenta);
+        if (!reduced) PB.particles.burst(app.particles, x, y, 7, col, 230);
+      }
+    }
+
+    var ae = g.audioEvents;
+    for (i = 0; i < ae.length; i++) {
+      var name = ae[i];
+      PB.audio.sfx(name);
+      if (name === 'jackpot') {
+        PB.camera.shake(app.camera, 0.8);
+        if (!reduced) PB.particles.burst(app.particles, bx, by, 28, T.neonAmber, 360);
+        PB.particles.popup(app.particles, bx, by - 18, S.jackpot, T.neonAmber);
+      } else if (name === 'multiball') {
+        PB.camera.shake(app.camera, 0.7);
+        if (!reduced) PB.particles.burst(app.particles, bx, by, 24, T.neonCyan, 340);
+        PB.particles.popup(app.particles, bx, by - 18, S.mMultiball, T.neonCyan);
+      } else if (name === 'rankup') {
+        PB.camera.shake(app.camera, 0.45);
+        PB.particles.popup(app.particles, bx, by - 18, S.promoted.replace(': ', ''), T.neonGreen);
+      } else if (name === 'bank') {
+        PB.camera.shake(app.camera, 0.3);
+        PB.particles.popup(app.particles, bx, by - 18, '+' + commas(cfg.score.dropBank), T.neonGreen);
+      } else if (name === 'dilate') {
+        PB.camera.shake(app.camera, 0.3);
+      } else if (name === 'drain') {
+        PB.camera.shake(app.camera, 0.5);
+      }
+    }
   }
 
   var PAUSE_ITEMS = 3;
@@ -680,6 +778,8 @@
       case 'settings': handleSettings(e); break;
       case 'gameover': handleGameOver(e); break;
     }
+    PB.particles.update(app.particles, dt);
+    PB.camera.update(app.camera, dt);
   }
 
   function blinkOn() { return Math.floor(performance.now() / 450) % 2 === 0; }
@@ -720,11 +820,15 @@
         PB.Menus.drawAttract(ctx, app.save, blinkOn());
         break;
       case 'play':
+        PB.camera.begin(ctx, app.camera);
         drawTable(ctx, app.game.sim);
+        PB.particles.draw(ctx, app.particles);
+        PB.camera.end(ctx);
         PB.Hud.draw(ctx, app.game);
         break;
       case 'pause':
         drawTable(ctx, app.game.sim);
+        PB.particles.draw(ctx, app.particles);
         PB.Menus.drawMenu(ctx, S.paused,
           [S.resume, S.settings, S.quitToTitle], app.menuIndex, S.pauseFooter);
         break;
@@ -770,6 +874,8 @@
     app.reduced = !!app.save.settings.reducedMotion;
     app.game = PB.Game.create(app.save.settings);
     app.input = PB.input.create(app.save.settings.keymap);
+    app.particles = PB.particles.create();
+    app.camera = PB.camera.create();
 
     // Browser autoplay policy: the audio context can only start from a user
     // gesture. Create it (and apply saved volume/mute) on the first key or

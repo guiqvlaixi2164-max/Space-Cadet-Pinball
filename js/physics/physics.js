@@ -59,6 +59,7 @@
       radius: radius,
       active: true,
       contacts: [],
+      dtScale: 1,      // per-ball time scale (Innovation 2: time dilation)
     };
   };
 
@@ -78,16 +79,20 @@
   };
 
   // Advance the world by one fixed step: apply gravity, then resolve motion with
-  // continuous collision detection for every active dynamic body.
+  // continuous collision detection for every active dynamic body. Each body may
+  // carry a dtScale (1 by default); a ball inside an active time-dilation zone
+  // gets a fraction here, so it integrates in slowed time while the rest of the
+  // world runs at full speed. Scaling time (not velocity) keeps energy intact.
   PB.step = function (world, dt) {
     var bodies = world.bodies;
     for (var i = 0; i < bodies.length; i++) {
       var b = bodies[i];
       if (!b.active) continue;
+      var bdt = b.dtScale ? dt * b.dtScale : dt;
       b.prev.x = b.pos.x;
       b.prev.y = b.pos.y;
-      b.vel.y += world.gravity * dt;
-      PB.collision.moveBody(world, b, dt);
+      b.vel.y += world.gravity * bdt;
+      PB.collision.moveBody(world, b, bdt);
     }
   };
 

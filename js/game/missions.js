@@ -111,6 +111,8 @@
       PB.Scoring.addRaw(g.scoring, d.jackpot);
       PB.Game.setMessage(g, PB.strings.mJackpot + commas(d.jackpot));
       PB.Game.cue(g, 'jackpot');
+      // Completing a mission warps the table to the other mode (Innovation 1).
+      PB.transform.toggle(g.sim);
       PB.Missions.reset(g.missions);
     },
 

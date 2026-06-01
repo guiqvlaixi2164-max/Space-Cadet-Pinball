@@ -140,6 +140,11 @@
     tilt: function (t) {
       for (var i = 0; i < 6; i++) tone(t + i * 0.09, 'square', 150, 150, 0.06, 0.3);
     },
+    // Time dilation engaging: a slow downward sweep with a shimmer on top.
+    dilate: function (t) {
+      tone(t, 'sine', 880, 220, 0.7, 0.32);
+      tone(t, 'triangle', 1760, 660, 0.6, 0.12);
+    },
   };
 
   // ---- Music: layers + lookahead scheduler ------------------------------------

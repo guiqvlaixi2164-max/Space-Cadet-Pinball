@@ -66,6 +66,27 @@
       left:  { pivotX: 195, pivotY: 800, rest: 0.46, active: -0.52 },
       right: { pivotX: 365, pivotY: 800, rest: PI - 0.46, active: (PI - 0.46) + 0.98 },
     },
+
+    // Innovation 2: the time-dilation zone, a circle of slowed time in mid
+    // playfield. Charge it with bumper/slingshot hits; once full, rolling the
+    // ball through it triggers slow motion.
+    dilation: { x: 250, y: 470, r: 64 },
+
+    // Innovation 1: how the table reconfigures. Each pop bumper has an Asteroid
+    // Field position/size it morphs to (its Station home is its spawn above);
+    // two deflector walls deploy in Asteroid mode, growing out from their
+    // midpoint into the deployed segment below.
+    transform: {
+      bumpers: [
+        { alt: { x: 110, y: 300, r: 19 } },
+        { alt: { x: 300, y: 150, r: 30 } },
+        { alt: { x: 490, y: 300, r: 19 } },
+      ],
+      deflectors: [
+        [206, 360, 150, 470],
+        [394, 360, 450, 470],
+      ],
+    },
   };
 
 })(window.PB = window.PB || {});

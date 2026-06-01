@@ -75,6 +75,11 @@
       sim.spawn = def.spawn;
       sim.lane = def.lane;
       sim.tableName = def.name;
+
+      // Innovations: the time-dilation zone and the table-transformation rig are
+      // built last, once all bodies exist (transform references the bumpers).
+      PB.timedilation.build(sim, def);
+      PB.transform.build(sim, def);
     },
   };
 
