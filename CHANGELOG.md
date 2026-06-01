@@ -3,6 +3,42 @@
 All notable changes to this project are documented here, one entry per phase.
 This project follows the phased build plan in `PLAN.md`.
 
+## Phase 5 - Audio
+
+It now sounds like a deluxe arcade machine. Every key event has a synthesized
+sound, and a layered music bed thickens during missions and multiball. There
+are still no audio files: everything is generated at runtime with Web Audio, so
+the repo stays clone-and-play.
+
+### Added
+- `js/engine/audio.js`: a Web Audio engine built from oscillators and noise
+  buffers. The context is created lazily on the first user gesture (browser
+  autoplay policy) and every method is a safe no-op until then, so the headless
+  self-test is untouched. Routing is master -> destination with a music bus and
+  an sfx bus underneath.
+- Synthesized SFX for every key event: plunger launch, flipper, pop bumper,
+  slingshot, drop/standup targets, bank clear, mission start, ball lock,
+  multiball, jackpot, rank-up, ball saved, mission fail, drain, and tilt.
+- Layered dynamic music: a four-bar minor progression with pad, bass, drums,
+  and lead layers. A small lookahead scheduler (driven once per render frame)
+  queues notes against the audio clock for glitch-free timing. Layer gains ramp
+  with the intensity: pad in menus, + bass in play, + drums during a mission,
+  + lead during multiball.
+- A `g.audioEvents` cue queue: the game-rules and mission layers push sound cues
+  (`PB.Game.cue`) that the app drains and plays. The queue never feeds back into
+  the simulation, so physics stays deterministic. Flipper, plunger launch, and
+  tilt sounds are driven from input/event edges in the app layer.
+- `js/config.js` `audio` block (master ceiling, music/sfx bus levels, bpm, layer
+  fade time). Settings volume and mute now drive the master gain live.
+
+### Exit criteria
+
+Met. Every key event has sound; the music intensifies during missions and
+multiball; volume and mute work from the settings menu. The self-test still
+reports `det=OK tunnel=OK flipper=OK ranks=OK store=OK balls=OK missions=OK
+multiball=OK`, confirming the audio plumbing did not disturb the deterministic
+simulation, with no console errors on a normal `file://` load.
+
 ## Phase 4 - Missions and multiball
 
 Goal-driven play: select a mission with lit targets, start it, complete its

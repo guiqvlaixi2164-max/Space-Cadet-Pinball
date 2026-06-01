@@ -81,7 +81,7 @@
       }
 
       var launched = PB.Plunger.update(sim.plunger, ball, !!input.plungerHeld, dt);
-      if (launched) sim.lastLaunch = launched;
+      if (launched) { sim.lastLaunch = launched; sim.events.push({ type: 'launch' }); }
 
       PB.Flipper.update(sim.left, !!input.flipperLeft && !tilt.tilted, dt);
       PB.Flipper.update(sim.right, !!input.flipperRight && !tilt.tilted, dt);
@@ -171,7 +171,14 @@
         ballSaveTimer: 0,
         ballSaveArmed: true,
         message: '', messageTimer: 0,
+        audioEvents: [],
       };
+    },
+
+    // Queue a one-shot sound cue. The app layer drains these and plays them; the
+    // sim/rules stay deterministic because this list never feeds back into them.
+    cue: function (g, name) {
+      if (g && g.audioEvents) g.audioEvents.push(name);
     },
 
     start: function (g) {
@@ -183,6 +190,7 @@
       g.ballSaveTimer = 0;
       g.ballSaveArmed = true;
       g.message = ''; g.messageTimer = 0;
+      g.audioEvents = [];
       PB.sim.spawnBall(g.sim);
       g.state = 'ready';
     },
@@ -194,6 +202,7 @@
 
     update: function (g, input, dt) {
       if (g.state !== 'ready' && g.state !== 'playing') return;
+      g.audioEvents.length = 0;
       if (g.messageTimer > 0) { g.messageTimer -= dt; if (g.messageTimer < 0) g.messageTimer = 0; }
 
       PB.sim.step(g.sim, input, dt);
@@ -210,25 +219,27 @@
       var ev = g.sim.events;
       for (var i = 0; i < ev.length; i++) {
         var e = ev[i];
-        if (e.type === 'bumper') PB.Scoring.add(g.scoring, e.circle.score);
-        else if (e.type === 'slingshot') PB.Scoring.add(g.scoring, e.seg.score);
-        else if (e.type === 'drop') PB.Scoring.add(g.scoring, e.seg.score);
-        else if (e.type === 'standup') PB.Scoring.add(g.scoring, e.seg.score);
+        if (e.type === 'bumper') { PB.Scoring.add(g.scoring, e.circle.score); PB.Game.cue(g, 'bumper'); }
+        else if (e.type === 'slingshot') { PB.Scoring.add(g.scoring, e.seg.score); PB.Game.cue(g, 'sling'); }
+        else if (e.type === 'drop') { PB.Scoring.add(g.scoring, e.seg.score); PB.Game.cue(g, 'target'); }
+        else if (e.type === 'standup') { PB.Scoring.add(g.scoring, e.seg.score); PB.Game.cue(g, 'standup'); }
+        else if (e.type === 'launch') PB.Game.cue(g, 'plunger');
+        else if (e.type === 'balldrain') PB.Game.cue(g, 'balldrain');
         else if (e.type === 'dropbank') {
           PB.Scoring.addRaw(g.scoring, cfg.score.dropBank);
           PB.Scoring.bumpMultiplier(g.scoring, 1, cfg.game.multiplierCap);
           PB.Game.setMessage(g, S.bankCleared);
+          PB.Game.cue(g, 'bank');
         } else if (e.type === 'drain') {
           PB.Game.onDrain(g);
         }
-        // balldrain (a lost multiball ball) costs nothing and is ignored here.
         PB.Missions.onEvent(g, e);
       }
 
       PB.Missions.tick(g, dt);
 
       var promo = PB.Scoring.updateRank(g.scoring);
-      if (promo) PB.Game.setMessage(g, S.promoted + promo);
+      if (promo) { PB.Game.setMessage(g, S.promoted + promo); PB.Game.cue(g, 'rankup'); }
     },
 
     onDrain: function (g) {
@@ -238,8 +249,10 @@
         PB.sim.spawnBall(g.sim);
         g.state = 'ready';
         PB.Game.setMessage(g, S.ballSaved);
+        PB.Game.cue(g, 'ballSaved');
         return;
       }
+      PB.Game.cue(g, 'drain');
       g.ballsLeft--;
       if (g.ballsLeft > 0) {
         g.ballNumber++;
@@ -427,6 +440,8 @@
     capturing: false, capIdx: -1,
     go: { entering: false, initials: ['A', 'A', 'A'], pos: 0, qualifies: false },
     reduced: false,
+    // Audio gesture + edge tracking for input-driven sounds.
+    audioReady: false, prevFlipL: false, prevFlipR: false, prevTilted: false,
   };
 
   function keyName(code) {
@@ -545,12 +560,29 @@
 
   function handlePlay(e, dt) {
     if (e.pause || e.escape) { app.screen = 'pause'; app.menuIndex = 0; return; }
+
+    // Input-driven sounds: flipper actuation on the press edge.
+    if (app.input.flipperLeft && !app.prevFlipL) PB.audio.sfx('flipper');
+    if (app.input.flipperRight && !app.prevFlipR) PB.audio.sfx('flipper');
+    app.prevFlipL = app.input.flipperLeft;
+    app.prevFlipR = app.input.flipperRight;
+
     PB.Game.update(app.game, {
       plungerHeld: app.input.plungerHeld,
       flipperLeft: app.input.flipperLeft,
       flipperRight: app.input.flipperRight,
       nudgeL: e.left, nudgeR: e.right, nudgeU: e.up,
     }, dt);
+
+    // Game-logic cues queued during the update.
+    var ae = app.game.audioEvents;
+    for (var i = 0; i < ae.length; i++) PB.audio.sfx(ae[i]);
+
+    // Tilt lockout triggers on the rising edge of the tilt flag.
+    var tilted = app.game.sim.tilt.tilted;
+    if (tilted && !app.prevTilted) PB.audio.sfx('tilt');
+    app.prevTilted = tilted;
+
     if (app.game.state === 'gameover') enterGameOver();
   }
 
@@ -577,15 +609,15 @@
     var i = app.menuIndex;
     if (e.left || e.right) {
       var dir = e.right ? 1 : -1;
-      if (i === 0) { st.volume = Math.max(0, Math.min(1, st.volume + dir * 0.1)); }
-      else if (i === 1) st.muted = !st.muted;
+      if (i === 0) { st.volume = Math.max(0, Math.min(1, st.volume + dir * 0.1)); PB.audio.applySettings(st); }
+      else if (i === 1) { st.muted = !st.muted; PB.audio.applySettings(st); }
       else if (i === 2) { st.reducedMotion = !st.reducedMotion; app.reduced = st.reducedMotion; }
       else if (i === 3) st.colorblind = !st.colorblind;
       PB.storage.save(app.save);
     }
     if (e.enter) {
       if (i >= 4 && i <= 6) startRebind(i);
-      else if (i === 1) { st.muted = !st.muted; PB.storage.save(app.save); }
+      else if (i === 1) { st.muted = !st.muted; PB.audio.applySettings(st); PB.storage.save(app.save); }
       else if (i === 2) { st.reducedMotion = !st.reducedMotion; app.reduced = st.reducedMotion; PB.storage.save(app.save); }
       else if (i === 3) { st.colorblind = !st.colorblind; PB.storage.save(app.save); }
       else if (i === 7) backFromSettings();
@@ -667,9 +699,20 @@
     ];
   }
 
+  // Music intensity from game state: 0 menus, 1 in play, 2 mission, 3 multiball.
+  function musicIntensity() {
+    if (app.screen !== 'play' || !app.game) return 0;
+    var g = app.game;
+    if (g.state !== 'playing' && g.state !== 'ready') return 0;
+    if (g.missions.multiball) return 3;
+    if (g.missions.state === 'active') return 2;
+    return 1;
+  }
+
   function render(alpha) {
     var ctx = app.ctx, w = cfg.view.width, h = cfg.view.height;
     app._alpha = alpha;
+    PB.audio.tick(musicIntensity());
     drawBackground(ctx, w, h);
 
     switch (app.screen) {
@@ -727,6 +770,20 @@
     app.reduced = !!app.save.settings.reducedMotion;
     app.game = PB.Game.create(app.save.settings);
     app.input = PB.input.create(app.save.settings.keymap);
+
+    // Browser autoplay policy: the audio context can only start from a user
+    // gesture. Create it (and apply saved volume/mute) on the first key or
+    // pointer, then drop the listeners.
+    function startAudio() {
+      if (app.audioReady) return;
+      app.audioReady = true;
+      PB.audio.ensure();
+      PB.audio.applySettings(app.save.settings);
+      window.removeEventListener('keydown', startAudio);
+      window.removeEventListener('pointerdown', startAudio);
+    }
+    window.addEventListener('keydown', startAudio);
+    window.addEventListener('pointerdown', startAudio);
 
     var loop = PB.loop.create({
       hz: cfg.sim.hz, maxSubSteps: cfg.sim.maxSubSteps,

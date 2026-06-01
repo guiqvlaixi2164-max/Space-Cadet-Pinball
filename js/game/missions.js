@@ -96,6 +96,7 @@
       m.need = d.need;
       m.timer = d.time;
       PB.Game.setMessage(g, d.name + PB.strings.mStart);
+      PB.Game.cue(g, 'missionStart');
     },
 
     advance: function (g, n) {
@@ -109,11 +110,13 @@
       var d = PB.Missions.defs()[g.missions.active];
       PB.Scoring.addRaw(g.scoring, d.jackpot);
       PB.Game.setMessage(g, PB.strings.mJackpot + commas(d.jackpot));
+      PB.Game.cue(g, 'jackpot');
       PB.Missions.reset(g.missions);
     },
 
     fail: function (g) {
       PB.Game.setMessage(g, PB.strings.mFailed);
+      PB.Game.cue(g, 'fail');
       PB.Missions.reset(g.missions);
     },
 
@@ -131,7 +134,10 @@
       if (m.multiball) return;
       m.lock++;
       if (m.lock >= cfg.missions.lockNeed) PB.Missions.startMultiball(g);
-      else PB.Game.setMessage(g, PB.strings.mLocked + m.lock + '/' + cfg.missions.lockNeed);
+      else {
+        PB.Game.setMessage(g, PB.strings.mLocked + m.lock + '/' + cfg.missions.lockNeed);
+        PB.Game.cue(g, 'lock');
+      }
     },
 
     startMultiball: function (g) {
@@ -143,6 +149,7 @@
         PB.sim.addBall(g.sim, sp[i].x, sp[i].y, sp[i].vx, sp[i].vy);
       }
       PB.Game.setMessage(g, PB.strings.mMultiball);
+      PB.Game.cue(g, 'multiball');
     },
 
     // Per-step bookkeeping: mission timer and multiball end detection.

@@ -91,6 +91,17 @@
       ],
     },
 
+    // Audio. master is the ceiling under the user volume; the music/sfx levels
+    // balance the two buses; bpm sets the music tempo; layerFade is the seconds
+    // a music layer takes to ramp in or out when the intensity changes.
+    audio: {
+      master: 0.9,
+      musicLevel: 0.5,
+      sfxLevel: 0.9,
+      bpm: 132,
+      layerFade: 0.8,
+    },
+
     starfield: {
       layers: [
         { count: 60,  speed: 6,  size: 1.0, color: 'rgba(180,210,255,0.55)' },
@@ -110,8 +121,8 @@
       dim: 'rgba(8,12,28,0.72)',
     },
 
-    version: '0.4.0',
-    phase: 4,
+    version: '0.5.0',
+    phase: 5,
   };
 
 })(window.PB = window.PB || {});
