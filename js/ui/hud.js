@@ -5,12 +5,6 @@
 (function (PB) {
   'use strict';
 
-  PB.format = {
-    commas: function (n) {
-      return String(Math.floor(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-    },
-  };
-
   PB.Hud = {
     draw: function (ctx, game) {
       var cfg = PB.config, t = cfg.theme, sc = game.scoring;
@@ -67,8 +61,27 @@
         ctx.fillRect(w / 2 - 60, 838, 120 * frac, 5);
       }
 
-      // Tilt meter on the right edge.
+      // Launch prompt: shown while the ball rests uncharged in the plunger lane,
+      // so a first-time player knows the ball is theirs to fire. Steady under
+      // reduced motion; a gentle pulse otherwise.
+      if (game.state === 'ready' && game.sim && PB.sim.inLane(game.sim) &&
+          game.sim.plunger.charge < 0.01) {
+        var la = PB.reduced ? 1 : (0.55 + 0.45 * (0.5 + 0.5 * Math.sin(performance.now() / 280)));
+        ctx.save();
+        ctx.globalAlpha = la;
+        ctx.textAlign = 'center';
+        ctx.font = '700 18px "Segoe UI", Arial, sans-serif';
+        ctx.fillStyle = t.neonAmber;
+        ctx.shadowColor = t.neonAmber;
+        ctx.shadowBlur = PB.reduced ? 0 : 12;
+        ctx.fillText(PB.strings.launchHint, w / 2, 742);
+        ctx.restore();
+      }
+
+      // Tilt meter on the right edge; time-dilation meter on the left.
       PB.Hud.drawTiltMeter(ctx, game);
+      PB.Hud.drawDilationMeter(ctx, game);
+      PB.Hud.drawTableMode(ctx, game);
 
       // Mission status and multiball lock (top center, under the rank/multiplier).
       var m = game.missions;
@@ -85,6 +98,16 @@
           ctx.fillStyle = t.neonCyan;
           var prog = d.objective === 'bank' ? '' : ('  ' + m.progress + '/' + m.need);
           ctx.fillText(d.name + prog + '   ' + Math.ceil(m.timer) + 's', w / 2, 150);
+          // For the first few seconds, spell out the objective so the player knows
+          // what to shoot, then it collapses to the compact counter above.
+          if (d.time - m.timer < 3) {
+            var instr = d.objective === 'bumpers' ? S.instrBumpers
+                      : d.objective === 'bank' ? S.instrBank : S.instrRescue;
+            ctx.fillStyle = 'rgba(223,241,255,0.8)';
+            ctx.font = '600 12px "Segoe UI", Arial, sans-serif';
+            ctx.fillText(instr, w / 2, 130);
+            ctx.font = '600 13px "Segoe UI", Arial, sans-serif';
+          }
         }
         if (m.multiball) {
           ctx.fillStyle = t.neonMagenta;
@@ -110,6 +133,39 @@
         ctx.shadowBlur = 0;
       }
 
+      ctx.restore();
+    },
+
+    // Time-dilation charge meter on the left edge (mirrors the tilt meter).
+    drawDilationMeter: function (ctx, game) {
+      var cfg = PB.config, t = cfg.theme, d = game.sim.dilation;
+      if (!d || !d.zone) return;
+      var x = 14, y = 120, h = 150;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, 8, h);
+      var col = d.active ? '#aef6ff' : (d.charge >= 1 ? t.neonCyan : 'rgba(86,180,233,0.85)');
+      ctx.fillStyle = col;
+      ctx.fillRect(x, y + h * (1 - d.charge), 8, h * d.charge);
+      ctx.fillStyle = d.active ? t.neonCyan : 'rgba(223,241,255,0.55)';
+      ctx.font = '600 10px "Segoe UI", Arial, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(PB.strings.dilationLabel, x - 2, y - 8);
+      ctx.restore();
+    },
+
+    // Current table mode (Innovation 1), dim at the bottom center so the player
+    // can see which layout is active and that it changes.
+    drawTableMode: function (ctx, game) {
+      var s = game.sim.transform;
+      if (!s) return;
+      var label = s.p >= 0.5 ? PB.strings.tableAsteroid : PB.strings.tableStation;
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.font = '700 11px "Segoe UI", Arial, sans-serif';
+      ctx.fillStyle = 'rgba(223,241,255,0.5)';
+      ctx.fillText(label, PB.config.view.width / 2, 884);
       ctx.restore();
     },
 

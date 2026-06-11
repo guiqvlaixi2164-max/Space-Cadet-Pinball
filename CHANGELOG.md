@@ -1,7 +1,27 @@
 # Changelog
 
 All notable changes to this project are documented here, one entry per phase.
-This project follows the phased build plan in `PLAN.md`.
+This project follows the phased build plan in `PLAN.md`. Post-v1 UX work follows
+the remediation plan in `WORKFLOW.md` (fixing the `PLAYTEST.md` / `caveat.md`
+findings).
+
+## UX Phase 1 - Onboarding and first-run clarity
+
+First-run guidance so a cold player can actually learn the game. UI-layer only;
+the deterministic simulation is unchanged (self-test all-OK, signature `d302b753`).
+
+### Added
+- A controls strip on the attract screen and along the bottom for the opening
+  seconds of a new game (`PB.Menus.drawControls`): `SHIFT Flippers / SPACE Launch
+  / ARROWS Nudge / P Pause`, with a "keys rebindable in settings" note.
+- The launch prompt is now actually drawn: the previously-defined-but-unused
+  `launchHint` shows over the plunger lane while the ball rests there uncharged.
+- Mission objective instructions ("Hit the pop bumpers!", "Clear the drop-target
+  bank!", "Hit the lit RESCUE target!") for the first few seconds of each mission,
+  then collapsing to the compact counter.
+- First-time innovation callouts (`drawCallout`): a "SLO-MO READY" cue when the
+  time-dilation meter first fills, and a prominent "STATION" / "ASTEROID FIELD"
+  banner when the table transforms, so both signature mechanics are noticed.
 
 ## Phase 7 - v1 polish and release (v1.0.0)
 

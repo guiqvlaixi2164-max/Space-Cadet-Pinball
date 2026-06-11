@@ -26,16 +26,31 @@
     build: function (sim, def) {
       sim.dilation = {
         zone: def.dilation || null,
-        charge: 0,        // 0..1 meter
-        active: false,    // slow motion currently running
-        ripple: 0,        // visual phase
+        charge: 0,         // 0..1 meter
+        active: false,     // slow motion currently running
+        activeTime: 0,     // seconds the current activation has run
+        anyInside: false,  // a ball is inside the zone this step
+        ripple: 0,         // visual phase
       };
     },
 
     reset: function (sim) {
       var d = sim.dilation;
       if (!d) return;
-      d.charge = 0; d.active = false; d.ripple = 0;
+      d.charge = 0; d.active = false; d.activeTime = 0; d.anyInside = false; d.ripple = 0;
+    },
+
+    // Smooth slow factor for a ball at squared-distance d2 from the zone centre:
+    // 1 (no slowing) at the rim, easing to slowScale toward the interior, so the
+    // ball does not jerk at the boundary.
+    scaleAt: function (d2, z, cfg) {
+      if (d2 >= z.r * z.r) return 1;
+      var dist = Math.sqrt(d2);
+      var band = z.r * cfg.edgeBand;
+      var k = band > 0 ? (z.r - dist) / band : 1;
+      k = k < 0 ? 0 : (k > 1 ? 1 : k);
+      var s = k * k * (3 - 2 * k);                 // smoothstep
+      return 1 + (cfg.slowScale - 1) * s;
     },
 
     // Before integration: decide activation and stamp each ball's dtScale so the
@@ -49,19 +64,25 @@
       if (!d.active && d.charge >= 1) {
         for (i = 0; i < bodies.length; i++) {
           b = bodies[i];
-          if (b.active && inZone(z, b)) { d.active = true; sim.events.push({ type: 'dilate' }); break; }
+          if (b.active && inZone(z, b)) {
+            d.active = true; d.activeTime = 0; sim.events.push({ type: 'dilate' }); break;
+          }
         }
       }
 
+      d.anyInside = false;
       for (i = 0; i < bodies.length; i++) {
         b = bodies[i];
-        var slow = d.active && b.active && inZone(z, b);
-        b.dtScale = slow ? cfg.slowScale : 1;
+        if (!d.active || !b.active) { b.dtScale = 1; continue; }
+        var dx = b.pos.x - z.x, dy = b.pos.y - z.y, dd2 = dx * dx + dy * dy;
+        b.dtScale = PB.timedilation.scaleAt(dd2, z, cfg);
+        if (dd2 < z.r * z.r) d.anyInside = true;
       }
     },
 
-    // After integration: charge from this step's events, drain while active, and
-    // advance the ripple phase.
+    // After integration: charge from this step's events, drain only while a ball
+    // is actually inside the active zone, enforce the duration cap, and advance
+    // the ripple phase.
     postStep: function (sim, dt) {
       var d = sim.dilation;
       if (!d || !d.zone) return;
@@ -75,8 +96,13 @@
         }
         if (d.charge > 1) d.charge = 1;
       } else {
-        d.charge -= cfg.drainPerSecond * dt;
-        if (d.charge <= 0) { d.charge = 0; d.active = false; }
+        d.activeTime += dt;
+        if (d.anyInside) d.charge -= cfg.drainPerSecond * dt;  // only spend it in use
+        if (d.charge <= 0 || d.activeTime >= cfg.maxActiveSeconds) {
+          d.charge = d.charge < 0 ? 0 : d.charge;
+          d.active = false;
+          d.activeTime = 0;
+        }
       }
       d.ripple += dt * cfg.rippleSpeed;
     },

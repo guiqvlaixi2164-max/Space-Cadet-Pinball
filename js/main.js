@@ -94,12 +94,19 @@
 
       PB.step(world, dt);
 
+      // Ball-to-ball separation (multiball) before flipper handling.
+      PB.resolveBallPairs(world);
+      // Push balls out of bodies the morph moved into them (only while morphing).
+      if (PB.transform.morphing(sim)) PB.transform.depenetrate(sim);
+
       var bodies = world.bodies, c, i, bi, bb;
+      var fsub = cfg.flippers.sweepSubsteps;
       // Flipper overlap and contact handling run for every ball in play.
       for (bi = 0; bi < bodies.length; bi++) {
         bb = bodies[bi];
-        PB.Flipper.resolveOverlap(world, sim.left, bb);
-        PB.Flipper.resolveOverlap(world, sim.right, bb);
+        if (!bb.active) continue;
+        PB.Flipper.sweepResolve(world, sim.left, bb, fsub);
+        PB.Flipper.sweepResolve(world, sim.right, bb, fsub);
       }
       for (bi = 0; bi < bodies.length; bi++) {
         bb = bodies[bi];
@@ -279,198 +286,11 @@
   };
 
   // ===========================================================================
-  // Self-test
+  // Self-test  — moved to js/selftest.js (loaded before this file). Kept out of
+  // main.js so this module stays closer to a single responsibility (boot + loop
+  // + screen state). PB.selfTest reads PB.sim / PB.Game at call time, so it does
+  // not matter that those are defined here, after it loads.
   // ===========================================================================
-
-  PB.selfTest = {
-    determinism: function () {
-      function run() {
-        var sim = PB.sim.create();
-        var dt = 1 / cfg.sim.hz, out = [];
-        for (var i = 0; i < 1600; i++) {
-          PB.sim.step(sim, {
-            plungerHeld: i < 60,
-            flipperLeft: i > 200 && i < 240,
-            flipperRight: i > 900 && i < 940,
-            nudgeR: i === 300,
-          }, dt);
-          if (i % 50 === 0) out.push(sim.ball.pos.x.toFixed(6) + ',' + sim.ball.pos.y.toFixed(6));
-        }
-        return out.join('|');
-      }
-      return run() === run();
-    },
-
-    noTunneling: function () {
-      var sim = PB.sim.create(), b = sim.ball;
-      b.pos.x = 300; b.pos.y = 420; b.prev.x = 300; b.prev.y = 420;
-      b.vel.x = 80000; b.vel.y = 0;
-      var dt = 1 / cfg.sim.hz;
-      for (var i = 0; i < 6; i++) PB.step(sim.world, dt);
-      return b.pos.x > 24 && b.pos.x < 566 && b.pos.y < cfg.physics.drainY;
-    },
-
-    flipperKick: function () {
-      var sim = PB.sim.create(), b = sim.ball;
-      b.pos.x = 235; b.pos.y = 805; b.prev.x = 235; b.prev.y = 805;
-      b.vel.x = 0; b.vel.y = 0;
-      var dt = 1 / cfg.sim.hz, minVy = 0;
-      for (var i = 0; i < 24; i++) {
-        PB.sim.step(sim, { flipperLeft: true }, dt);
-        if (b.vel.y < minVy) minVy = b.vel.y;
-      }
-      return minVy < -250;
-    },
-
-    scoringRanks: function () {
-      var sc = PB.Scoring.create();
-      PB.Scoring.addRaw(sc, 25000);
-      var p1 = PB.Scoring.updateRank(sc);   // Ensign at 20000
-      PB.Scoring.addRaw(sc, 100000);
-      var p2 = PB.Scoring.updateRank(sc);   // 125000 -> Captain at 120000
-      return p1 === 'Ensign' && p2 === 'Captain' && PB.Scoring.rank(sc).name === 'Captain';
-    },
-
-    storage: function () {
-      var d = PB.storage.defaults();
-      PB.storage.addHighScore(d, 'AAA', 5000, 'Cadet');
-      PB.storage.addHighScore(d, 'BBB', 9000, 'Ensign');
-      PB.storage.addHighScore(d, 'CCC', 1000, 'Cadet');
-      var sorted = d.highScores[0].score === 9000 && d.highScores[2].score === 1000;
-      var cap = d.highScores.length === 3;
-      var q = PB.storage.qualifies(d, 2000) === true;
-      var migrated = PB.storage.migrate({ version: 99 }).version === 1; // garbage -> defaults
-      return sorted && cap && q && migrated;
-    },
-
-    ballManagement: function () {
-      var g = PB.Game.create(PB.storage.defaults().settings);
-      PB.Game.start(g);
-      var dt = 1 / cfg.sim.hz;
-      var empty = { plungerHeld: false, flipperLeft: false, flipperRight: false,
-                    nudgeL: false, nudgeR: false, nudgeU: false };
-      for (var life = 0; life < cfg.game.balls; life++) {
-        g.state = 'playing';
-        g.ballSaveArmed = false;
-        g.ballSaveTimer = 0;
-        g.sim.ball.active = true;
-        g.sim.ball.pos.y = 2000;     // force a drain
-        PB.Game.update(g, empty, dt);
-      }
-      return g.state === 'gameover';
-    },
-
-    missions: function () {
-      var g = PB.Game.create(PB.storage.defaults().settings);
-      PB.Game.start(g);
-      var m = g.missions;
-
-      // Select Warp Survey, start it, then satisfy the bumper objective.
-      PB.Missions.onEvent(g, { type: 'standup', seg: { role: 'select', id: 0 } });
-      var sel = m.state === 'selected' && m.selected === 0;
-      PB.Missions.onEvent(g, { type: 'standup', seg: { role: 'start', id: 3 } });
-      var act = m.state === 'active' && m.active === 0;
-      var before = g.scoring.score;
-      for (var i = 0; i < cfg.missions.warp.need; i++) {
-        PB.Missions.onEvent(g, { type: 'bumper' });
-      }
-      var done = m.state === 'idle' &&
-                 g.scoring.score >= before + cfg.missions.warp.jackpot;
-
-      // Start Rescue, then let the timer run out to verify the fail path.
-      PB.Missions.onEvent(g, { type: 'standup', seg: { role: 'select', id: 2 } });
-      PB.Missions.onEvent(g, { type: 'standup', seg: { role: 'start', id: 3 } });
-      PB.Missions.tick(g, cfg.missions.rescue.time + 1);
-      var failed = m.state === 'idle';
-
-      return sel && act && done && failed;
-    },
-
-    multiball: function () {
-      var g = PB.Game.create(PB.storage.defaults().settings);
-      PB.Game.start(g);
-      var empty = { plungerHeld: false, flipperLeft: false, flipperRight: false,
-                    nudgeL: false, nudgeR: false, nudgeU: false };
-      var expect = 1 + cfg.missions.mbSpawns.length;
-
-      for (var i = 0; i < cfg.missions.lockNeed; i++) {
-        PB.Missions.onEvent(g, { type: 'standup', seg: { role: 'lock', id: 4 } });
-      }
-      var spawned = g.missions.multiball && g.sim.world.bodies.length === expect;
-
-      // Force the extra balls (not the primary) off the table. They should drain
-      // as ball losses with no life lost, ending multiball.
-      var ballsBefore = g.ballsLeft;
-      var bodies = g.sim.world.bodies;
-      for (var j = bodies.length - 1; j >= 1; j--) {
-        bodies[j].pos.x = 300; bodies[j].pos.y = 5000;
-        bodies[j].prev.x = 300; bodies[j].prev.y = 5000;
-        bodies[j].vel.x = 0; bodies[j].vel.y = 0;
-      }
-      g.state = 'playing';
-      PB.Game.update(g, empty, 1 / cfg.sim.hz);
-      var ended = g.sim.world.bodies.length === 1 &&
-                  g.ballsLeft === ballsBefore && !g.missions.multiball;
-
-      return spawned && ended;
-    },
-
-    // Innovation 2: a primed ball entering the zone activates slow motion (its
-    // dtScale drops) and moves much less in a step than it otherwise would.
-    dilation: function () {
-      var sim = PB.sim.create(), dt = 1 / cfg.sim.hz, z = sim.dilation.zone;
-      sim.dilation.charge = 1;
-      var b = sim.ball;
-      b.pos.x = z.x; b.pos.y = z.y; b.prev.x = z.x; b.prev.y = z.y;
-      b.vel.x = 0; b.vel.y = 300;
-      PB.sim.step(sim, {}, dt);
-      var active = sim.dilation.active === true;
-      var scaled = Math.abs(b.dtScale - cfg.dilation.slowScale) < 1e-9;
-      var slowed = (b.pos.y - z.y) < 300 * dt * 0.6;   // vs ~300*dt undilated
-      return active && scaled && slowed;
-    },
-
-    // Innovation 1: toggling the table morphs bumper 0 to its Asteroid position
-    // and deploys a deflector, and toggling back restores Station exactly.
-    transform: function () {
-      var sim = PB.sim.create(), dt = 1 / cfg.sim.hz, empty = {};
-      var m = sim.transform.bumpers[0], d0 = sim.transform.deflectors[0];
-      var steps = Math.ceil(cfg.transform.duration / dt) + 20, i;
-      PB.transform.toggle(sim);
-      for (i = 0; i < steps; i++) PB.sim.step(sim, empty, dt);
-      var atAlt = Math.abs(m.body.x - m.alt.x) < 0.5 && d0.seg.active === true;
-      PB.transform.toggle(sim);
-      for (i = 0; i < steps; i++) PB.sim.step(sim, empty, dt);
-      var atHome = Math.abs(m.body.x - m.home.x) < 0.5 && d0.seg.active === false;
-      return atAlt && atHome;
-    },
-
-    run: function () {
-      var r = {
-        det: PB.selfTest.determinism(),
-        tun: PB.selfTest.noTunneling(),
-        kick: PB.selfTest.flipperKick(),
-        rank: PB.selfTest.scoringRanks(),
-        store: PB.selfTest.storage(),
-        balls: PB.selfTest.ballManagement(),
-        miss: PB.selfTest.missions(),
-        multi: PB.selfTest.multiball(),
-        dil: PB.selfTest.dilation(),
-        trans: PB.selfTest.transform(),
-      };
-      var ok = r.det && r.tun && r.kick && r.rank && r.store && r.balls &&
-               r.miss && r.multi && r.dil && r.trans;
-      var msg = 'SELFTEST det=' + b(r.det) + ' tunnel=' + b(r.tun) +
-                ' flipper=' + b(r.kick) + ' ranks=' + b(r.rank) +
-                ' store=' + b(r.store) + ' balls=' + b(r.balls) +
-                ' missions=' + b(r.miss) + ' multiball=' + b(r.multi) +
-                ' dilation=' + b(r.dil) + ' transform=' + b(r.trans);
-      function b(v) { return v ? 'OK' : 'FAIL'; }
-      try { document.title = msg; } catch (e) {}
-      if (window.console) console.log(msg);
-      return { ok: ok, msg: msg };
-    },
-  };
 
   // ===========================================================================
   // App: input, loop, screen state machine, rendering, menus.
@@ -479,6 +299,7 @@
   var app = {
     canvas: null, ctx: null, input: null, game: null,
     particles: null, camera: null,
+    touch: { flipperLeft: false, flipperRight: false, plungerHeld: false },
     save: null, stars: [], screen: 'attract',
     menuIndex: 0, settingsFrom: 'attract',
     capturing: false, capIdx: -1,
@@ -486,7 +307,20 @@
     reduced: false,
     // Audio gesture + edge tracking for input-driven sounds.
     audioReady: false, prevFlipL: false, prevFlipR: false, prevTilted: false,
+    // First-run onboarding: a bottom controls strip for the opening seconds of a
+    // game, and a transient "callout" banner for innovation moments (slo-mo armed,
+    // table transformed). These are app-layer only and never touch the sim.
+    controlsTimer: 0,
+    callout: { text: '', timer: 0, color: '' },
+    prevMode: 0, prevArmed: false, seenDilation: false,
   };
+
+  // Raise a transient banner (table transformed, slo-mo ready). App-layer only.
+  function setCallout(text, color, seconds) {
+    app.callout.text = text;
+    app.callout.color = color;
+    app.callout.timer = seconds;
+  }
 
   function keyName(code) {
     if (!code) return '?';
@@ -607,24 +441,39 @@
 
   // ---- Screen input handlers ----
   function handleAttract(e) {
-    if (e.enter) { PB.Game.start(app.game); app.screen = 'play'; }
+    if (e.enter) {
+      PB.Game.start(app.game);
+      app.screen = 'play';
+      // Re-show the controls along the bottom for the opening seconds, and reset
+      // the per-game first-time callout tracking.
+      app.controlsTimer = 5;
+      app.callout.timer = 0;
+      app.prevMode = PB.transform.mode(app.game.sim);
+      app.prevArmed = false;
+      app.seenDilation = false;
+    }
     else if (e.escape) { app.screen = 'settings'; app.settingsFrom = 'attract'; app.menuIndex = 0; }
   }
 
   function handlePlay(e, dt) {
     if (e.pause || e.escape) { app.screen = 'pause'; app.menuIndex = 0; return; }
 
+    // Combine keyboard and touch held-states.
+    var fl = app.input.flipperLeft || app.touch.flipperLeft;
+    var fr = app.input.flipperRight || app.touch.flipperRight;
+    var pl = app.input.plungerHeld || app.touch.plungerHeld;
+
     // Input-driven sounds: flipper actuation on the press edge.
-    if (app.input.flipperLeft && !app.prevFlipL) PB.audio.sfx('flipper');
-    if (app.input.flipperRight && !app.prevFlipR) PB.audio.sfx('flipper');
-    app.prevFlipL = app.input.flipperLeft;
-    app.prevFlipR = app.input.flipperRight;
+    if (fl && !app.prevFlipL) PB.audio.sfx('flipper');
+    if (fr && !app.prevFlipR) PB.audio.sfx('flipper');
+    app.prevFlipL = fl;
+    app.prevFlipR = fr;
 
     PB.Game.update(app.game, {
-      plungerHeld: app.input.plungerHeld,
-      flipperLeft: app.input.flipperLeft,
-      flipperRight: app.input.flipperRight,
-      nudgeL: e.left, nudgeR: e.right, nudgeU: e.up,
+      plungerHeld: pl,
+      flipperLeft: fl,
+      flipperRight: fr,
+      nudgeL: e.nudgeL, nudgeR: e.nudgeR, nudgeU: e.nudgeU,
     }, dt);
 
     // Sound + particles + screen shake from this step's events and cues.
@@ -638,10 +487,23 @@
     }
     app.prevTilted = tilted;
 
+    // Innovation callouts (rising-edge detected here, drawn over the HUD).
+    var sim = app.game.sim;
+    var mode = PB.transform.mode(sim);
+    if (mode !== app.prevMode) {
+      var label = mode ? S.tableAsteroid : S.tableStation;
+      setCallout(label, mode ? cfg.theme.neonAmber : cfg.theme.neonCyan, 1.9);
+      app.prevMode = mode;
+    }
+    var armed = sim.dilation && sim.dilation.charge >= 1;
+    if (armed && !app.prevArmed && !app.seenDilation && !(sim.dilation && sim.dilation.active)) {
+      setCallout(S.dilationReady, cfg.theme.neonCyan, 2.6);
+      app.seenDilation = true;
+    }
+    app.prevArmed = armed;
+
     if (app.game.state === 'gameover') enterGameOver();
   }
-
-  function commas(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
   // Translate the step's physical contacts and queued cues into audio, pooled
   // particles, and screen shake. Heavy bursts are gated behind reduced motion.
@@ -683,7 +545,7 @@
         PB.particles.popup(app.particles, bx, by - 18, S.promoted.replace(': ', ''), T.neonGreen);
       } else if (name === 'bank') {
         shake(0.3);
-        PB.particles.popup(app.particles, bx, by - 18, '+' + commas(cfg.score.dropBank), T.neonGreen);
+        PB.particles.popup(app.particles, bx, by - 18, '+' + PB.format.commas(cfg.score.dropBank), T.neonGreen);
       } else if (name === 'dilate') {
         shake(0.3);
       } else if (name === 'drain') {
@@ -704,7 +566,14 @@
     }
   }
 
-  var SETTINGS_ITEMS = 8; // volume, mute, reducedMotion, colorblind, L, R, plunger, back
+  // Rebindable rows 4..10 map to these keymap fields in order.
+  var REBIND_FIELDS = ['flipperLeft', 'flipperRight', 'plunger',
+                       'nudgeLeft', 'nudgeRight', 'nudgeUp', 'pause'];
+  var REBIND_FIRST = 4;
+  var REBIND_LAST = REBIND_FIRST + REBIND_FIELDS.length - 1;   // 10
+  var SETTINGS_BACK = REBIND_LAST + 1;                          // 11
+  var SETTINGS_ITEMS = SETTINGS_BACK + 1;                       // 12
+
   function handleSettings(e) {
     if (app.capturing) return; // waiting for a key; ignore navigation
     var st = app.save.settings;
@@ -717,22 +586,22 @@
       var dir = e.right ? 1 : -1;
       if (i === 0) { st.volume = Math.max(0, Math.min(1, st.volume + dir * 0.1)); PB.audio.applySettings(st); }
       else if (i === 1) { st.muted = !st.muted; PB.audio.applySettings(st); }
-      else if (i === 2) { st.reducedMotion = !st.reducedMotion; app.reduced = st.reducedMotion; }
+      else if (i === 2) { st.reducedMotion = !st.reducedMotion; app.reduced = PB.reduced = st.reducedMotion; }
       else if (i === 3) { st.colorblind = !st.colorblind; PB.applyPalette(st.colorblind); }
       PB.storage.save(app.save);
     }
     if (e.enter) {
-      if (i >= 4 && i <= 6) startRebind(i);
+      if (i >= REBIND_FIRST && i <= REBIND_LAST) startRebind(i);
       else if (i === 1) { st.muted = !st.muted; PB.audio.applySettings(st); PB.storage.save(app.save); }
-      else if (i === 2) { st.reducedMotion = !st.reducedMotion; app.reduced = st.reducedMotion; PB.storage.save(app.save); }
+      else if (i === 2) { st.reducedMotion = !st.reducedMotion; app.reduced = PB.reduced = st.reducedMotion; PB.storage.save(app.save); }
       else if (i === 3) { st.colorblind = !st.colorblind; PB.applyPalette(st.colorblind); PB.storage.save(app.save); }
-      else if (i === 7) backFromSettings();
+      else if (i === SETTINGS_BACK) backFromSettings();
     }
   }
 
   function startRebind(i) {
     app.capturing = true; app.capIdx = i;
-    var field = i === 4 ? 'flipperLeft' : (i === 5 ? 'flipperRight' : 'plunger');
+    var field = REBIND_FIELDS[i - REBIND_FIRST];
     app.input.captureKey(function (code) {
       if (code) { // null means the rebind was cancelled with Escape
         app.save.settings.keymap[field] = code;
@@ -788,9 +657,31 @@
     }
     PB.particles.update(app.particles, dt);
     PB.camera.update(app.camera, dt);
+
+    // Onboarding timers (app-layer, do not affect the sim).
+    if (app.controlsTimer > 0) { app.controlsTimer -= dt; if (app.controlsTimer < 0) app.controlsTimer = 0; }
+    if (app.callout.timer > 0) { app.callout.timer -= dt; if (app.callout.timer < 0) app.callout.timer = 0; }
   }
 
-  function blinkOn() { return Math.floor(performance.now() / 450) % 2 === 0; }
+  // A transient innovation banner (slo-mo ready, table transformed), centered just
+  // below the main message line so the two never collide. Fades out near the end.
+  function drawCallout(ctx) {
+    if (app.callout.timer <= 0 || !app.callout.text) return;
+    var w = cfg.view.width;
+    var a = Math.min(1, app.callout.timer * 1.6);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.textAlign = 'center';
+    ctx.font = '800 22px "Segoe UI", Arial, sans-serif';
+    ctx.fillStyle = app.callout.color || cfg.theme.neonCyan;
+    ctx.shadowColor = ctx.fillStyle;
+    ctx.shadowBlur = app.reduced ? 0 : 16;
+    ctx.fillText(app.callout.text, w / 2, 520);
+    ctx.restore();
+  }
+
+  // Steady (no blink) under reduced motion; otherwise a ~1 Hz blink.
+  function blinkOn() { return PB.reduced || Math.floor(performance.now() / 450) % 2 === 0; }
 
   function settingsLines() {
     var st = app.save.settings;
@@ -803,6 +694,10 @@
       S.rebindLeft + ':  ' + val(4, keyName(st.keymap.flipperLeft)),
       S.rebindRight + ':  ' + val(5, keyName(st.keymap.flipperRight)),
       S.rebindPlunger + ':  ' + val(6, keyName(st.keymap.plunger)),
+      S.rebindNudgeLeft + ':  ' + val(7, keyName(st.keymap.nudgeLeft)),
+      S.rebindNudgeRight + ':  ' + val(8, keyName(st.keymap.nudgeRight)),
+      S.rebindNudgeUp + ':  ' + val(9, keyName(st.keymap.nudgeUp)),
+      S.rebindPause + ':  ' + val(10, keyName(st.keymap.pause)),
       S.back,
     ];
   }
@@ -833,6 +728,9 @@
         PB.particles.draw(ctx, app.particles);
         PB.camera.end(ctx);
         PB.Hud.draw(ctx, app.game);
+        drawCallout(ctx);
+        // Controls reminder along the bottom for the opening seconds of a game.
+        if (app.controlsTimer > 0) PB.Menus.drawControls(ctx, 700);
         break;
       case 'pause':
         drawTable(ctx, app.game.sim);
@@ -859,6 +757,52 @@
     }
   }
 
+  // ---- Touch / pointer controls ----
+  // Makes the core loop playable without a keyboard: the lower playfield is split
+  // into left/right flipper zones, the plunger lane is a hold-to-charge zone, and
+  // a tap on any menu screen confirms. Multitouch is tracked per pointer id so
+  // both flippers can be held at once. Mouse pointers work the same way.
+  function setupTouch() {
+    var c = app.canvas;
+    var pointers = {};   // pointerId -> 'L' | 'R' | 'P'
+
+    function toView(ev) {
+      var rect = c.getBoundingClientRect();
+      return {
+        x: (ev.clientX - rect.left) / rect.width * cfg.view.width,
+        y: (ev.clientY - rect.top) / rect.height * cfg.view.height,
+      };
+    }
+    function roleAt(v) {
+      if (v.x > 520 && v.y > 620) return 'P';            // plunger lane
+      return v.x < cfg.view.width / 2 ? 'L' : 'R';        // left / right flipper
+    }
+    function recompute() {
+      var l = false, r = false, p = false, id;
+      for (id in pointers) {
+        if (pointers[id] === 'L') l = true;
+        else if (pointers[id] === 'R') r = true;
+        else if (pointers[id] === 'P') p = true;
+      }
+      app.touch.flipperLeft = l; app.touch.flipperRight = r; app.touch.plungerHeld = p;
+    }
+    function release(ev) { if (pointers[ev.pointerId]) { delete pointers[ev.pointerId]; recompute(); } }
+
+    c.addEventListener('pointerdown', function (ev) {
+      ev.preventDefault();
+      if (app.screen === 'play') {
+        pointers[ev.pointerId] = roleAt(toView(ev));
+        recompute();
+      } else {
+        // Menus: a tap confirms the current item (start, continue, resume, back).
+        app.input._edges.enter = true;
+      }
+    });
+    c.addEventListener('pointerup', release);
+    c.addEventListener('pointercancel', release);
+    c.addEventListener('pointerout', release);
+  }
+
   // ---- Boot ----
   function init() {
     app.canvas = document.getElementById('game');
@@ -880,6 +824,7 @@
 
     app.save = PB.storage.load();
     app.reduced = !!app.save.settings.reducedMotion;
+    PB.reduced = app.reduced;
     PB.applyPalette(app.save.settings.colorblind);
     app.game = PB.Game.create(app.save.settings);
     app.input = PB.input.create(app.save.settings.keymap);
@@ -899,6 +844,8 @@
     }
     window.addEventListener('keydown', startAudio);
     window.addEventListener('pointerdown', startAudio);
+
+    setupTouch();
 
     var loop = PB.loop.create({
       hz: cfg.sim.hz, maxSubSteps: cfg.sim.maxSubSteps,

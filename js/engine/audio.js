@@ -217,6 +217,12 @@
     var m = A.music, ctx = A.ctx;
     if (!m.started) { m.started = true; m.nextTime = ctx.currentTime + 0.06; m.step16 = 0; }
     var s16 = (60 / cfg.audio.bpm) / 4;       // seconds per sixteenth
+    // If we fell far behind (the tab was throttled or backgrounded), skip the
+    // backlog rather than dumping a cluster of past-due notes when we resume.
+    if (m.nextTime < ctx.currentTime - 0.25) {
+      m.step16 += Math.floor((ctx.currentTime - m.nextTime) / s16) + 1;
+      m.nextTime = ctx.currentTime;
+    }
     var ahead = ctx.currentTime + 0.12;
     while (m.nextTime < ahead) {
       playStep(m.step16, m.nextTime, s16);
@@ -262,6 +268,17 @@
       A.musicBus.connect(A.master);
       buildMusic();
       applyMaster();
+
+      // Suspend the context while the tab is hidden: no wasted CPU on
+      // oscillators, and no scheduling burst when the tab comes back.
+      if (!A._visHook && typeof document !== 'undefined' && document.addEventListener) {
+        A._visHook = true;
+        document.addEventListener('visibilitychange', function () {
+          if (!A.ctx) return;
+          if (document.hidden) { if (A.ctx.suspend) A.ctx.suspend(); }
+          else if (A.ctx.resume) A.ctx.resume();
+        });
+      }
     },
 
     ready: function () { return !!A.ctx; },
@@ -275,15 +292,15 @@
     // Play a one-shot effect by cue name. No-op before ensure() or for unknown
     // names (so new cues degrade gracefully).
     sfx: function (name) {
-      if (!A.ctx) return;
+      if (!A.ctx || A.settings.muted) return;   // muted: skip node creation
       var f = SFX[name];
       if (f) f(A.ctx.currentTime);
     },
 
     // Drive the music: set the layering intensity and advance the scheduler.
-    // Call once per render frame.
+    // Call once per render frame. Skipped while muted so no oscillators run.
     tick: function (intensity) {
-      if (!A.ctx) return;
+      if (!A.ctx || A.settings.muted) return;
       setIntensity(intensity | 0);
       schedule();
     },

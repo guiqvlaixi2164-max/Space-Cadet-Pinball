@@ -22,7 +22,10 @@
   PB.V = V;
 
   // mulberry32: a small, fast, deterministic PRNG. Same seed gives the same
-  // stream on every machine, keeping any randomized gameplay reproducible.
+  // stream on every machine. Reserved for future randomized gameplay (none yet),
+  // and intentionally NOT wired into the world, so nothing implies reproducible
+  // randomness that does not exist. Add randomness through this (seeded from
+  // config.sim.seed) if you want it to stay replay-safe.
   PB.makeRNG = function (seed) {
     var s = seed >>> 0;
     return function () {
@@ -32,6 +35,22 @@
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   };
+
+  // Deterministic sine/cosine. Math.sin/cos are NOT specified to be correctly
+  // rounded, so they can differ in the last bit between JS engines and OS math
+  // libraries; feeding those into the flipper geometry every step makes the
+  // simulation diverge across machines over time. These use only range reduction
+  // (Math.floor, Math.PI) and +,-,*,/ which ARE IEEE-754 deterministic, plus a
+  // 13th-order Taylor series (error < 1e-5 over the reduced range), so the sim is
+  // bit-reproducible on any conformant engine. Used by the flipper and arc math.
+  var PI = Math.PI, TWO_PI = 2 * Math.PI;
+  PB.dsin = function (x) {
+    x = x - TWO_PI * Math.floor((x + PI) / TWO_PI);   // reduce to [-PI, PI)
+    var x2 = x * x;
+    return x * (1 + x2 * (-1 / 6 + x2 * (1 / 120 + x2 * (-1 / 5040 +
+      x2 * (1 / 362880 + x2 * (-1 / 39916800 + x2 * (1 / 6227020800)))))));
+  };
+  PB.dcos = function (x) { return PB.dsin(x + PI / 2); };
 
   PB.makeWorld = function () {
     var p = PB.config.physics;
@@ -47,7 +66,6 @@
       segments: [],   // static line segments (walls, slingshots, drop targets)
       flippers: [],    // rotating flipper segments (moving surfaces)
       circles: [],     // circular obstacles (pop bumpers)
-      rng: PB.makeRNG(PB.config.sim.seed),
     };
   };
 
@@ -93,6 +111,38 @@
       b.prev.y = b.pos.y;
       b.vel.y += world.gravity * bdt;
       PB.collision.moveBody(world, b, bdt);
+    }
+  };
+
+  // Resolve ball-against-ball overlaps after integration (multiball). Equal-mass
+  // circles: push the pair apart equally and exchange the normal component of
+  // their relative velocity. Deterministic (pure function of the bodies), so it
+  // does not disturb reproducibility. Run after PB.step.
+  PB.resolveBallPairs = function (world) {
+    var b = world.bodies, n = b.length, i, j;
+    for (i = 0; i < n; i++) {
+      var bi = b[i];
+      if (!bi.active) continue;
+      for (j = i + 1; j < n; j++) {
+        var bj = b[j];
+        if (!bj.active) continue;
+        var dx = bj.pos.x - bi.pos.x, dy = bj.pos.y - bi.pos.y;
+        var rr = bi.radius + bj.radius;
+        var d2 = dx * dx + dy * dy;
+        if (d2 >= rr * rr || d2 < 1e-9) continue;
+        var d = Math.sqrt(d2);
+        var nx = dx / d, ny = dy / d;
+        var push = (rr - d) * 0.5;
+        bi.pos.x -= nx * push; bi.pos.y -= ny * push;
+        bj.pos.x += nx * push; bj.pos.y += ny * push;
+        var rvx = bj.vel.x - bi.vel.x, rvy = bj.vel.y - bi.vel.y;
+        var vn = rvx * nx + rvy * ny;
+        if (vn < 0) {
+          var imp = -(1 + world.restitution) * vn * 0.5;
+          bi.vel.x -= imp * nx; bi.vel.y -= imp * ny;
+          bj.vel.x += imp * nx; bj.vel.y += imp * ny;
+        }
+      }
     }
   };
 

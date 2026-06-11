@@ -62,9 +62,39 @@
       ctx.fillStyle = 'rgba(223,241,255,0.6)';
       ctx.font = '500 13px "Segoe UI", Arial, sans-serif';
       ctx.fillText(s.settingsHint, w / 2, 640);
+
+      // Controls strip so a first-time player knows how to play before starting.
+      PB.Menus.drawControls(ctx, 712);
+    },
+
+    // A compact, always-readable control strip: a framed row of key chips plus a
+    // note that the keys are rebindable. Used on attract and (from main.js) along
+    // the bottom for the first seconds of a new game.
+    drawControls: function (ctx, y) {
+      var cfg = PB.config, t = cfg.theme, w = cfg.view.width, s = PB.strings;
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // Backing panel for contrast over the starfield/playfield.
+      ctx.fillStyle = 'rgba(8,12,28,0.55)';
+      ctx.strokeStyle = 'rgba(120,150,220,0.35)';
+      ctx.lineWidth = 1;
+      var pw = 520, ph = 30;
+      if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(w / 2 - pw / 2, y - ph / 2, pw, ph, 8); ctx.fill(); ctx.stroke(); }
+      else { ctx.fillRect(w / 2 - pw / 2, y - ph / 2, pw, ph); ctx.strokeRect(w / 2 - pw / 2, y - ph / 2, pw, ph); }
+      ctx.fillStyle = 'rgba(223,241,255,0.85)';
+      ctx.font = '600 13px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(s.controlsHint, w / 2, y);
+      ctx.fillStyle = 'rgba(223,241,255,0.5)';
+      ctx.font = '500 11px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(s.remapHint, w / 2, y + 24);
+      ctx.textBaseline = 'alphabetic';
+      ctx.restore();
     },
 
     // Generic vertical menu. lines: array of strings. index: highlighted row.
+    // The row spacing adapts to the line count so long menus (settings) fit
+    // between the title and the footer without overflowing.
     drawMenu: function (ctx, title, lines, index, footer) {
       var cfg = PB.config, t = cfg.theme, w = cfg.view.width;
       dimBackground(ctx);
@@ -73,23 +103,27 @@
       ctx.font = '800 30px "Segoe UI", Arial, sans-serif';
       ctx.fillText(title, w / 2, 240);
 
-      var y0 = 320, dy = 42;
+      var n = lines.length, top = 296, bottom = 742;
+      var dy = Math.min(42, (bottom - top) / n);
+      var fs = dy >= 34 ? 20 : 17;
+      ctx.textBaseline = 'middle';
       for (var i = 0; i < lines.length; i++) {
         var sel = i === index;
-        ctx.font = (sel ? '700 ' : '500 ') + '20px "Segoe UI", Arial, sans-serif';
-        ctx.fillStyle = sel ? t.neonAmber : 'rgba(223,241,255,0.8)';
+        var cy = top + i * dy + dy / 2;
         if (sel) {
           ctx.fillStyle = 'rgba(255,194,75,0.14)';
-          ctx.fillRect(w / 2 - 200, y0 + i * dy - 16, 400, 32);
-          ctx.fillStyle = t.neonAmber;
+          ctx.fillRect(w / 2 - 205, cy - dy / 2 + 2, 410, dy - 4);
         }
-        ctx.fillText(lines[i], w / 2, y0 + i * dy - 10);
+        ctx.font = (sel ? '700 ' : '500 ') + fs + 'px "Segoe UI", Arial, sans-serif';
+        ctx.fillStyle = sel ? t.neonAmber : 'rgba(223,241,255,0.8)';
+        ctx.fillText(lines[i], w / 2, cy);
       }
+      ctx.textBaseline = 'alphabetic';
 
       if (footer) {
         ctx.fillStyle = 'rgba(223,241,255,0.55)';
         ctx.font = '500 13px "Segoe UI", Arial, sans-serif';
-        ctx.fillText(footer, w / 2, 760);
+        ctx.fillText(footer, w / 2, 766);
       }
     },
 

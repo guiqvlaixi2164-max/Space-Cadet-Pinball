@@ -19,22 +19,22 @@
   'use strict';
 
   var cfg = PB.config;
+  var commas = PB.format.commas;   // shared single implementation (js/util.js)
 
-  // Group with commas, locale-independent (no toLocaleString, for determinism).
-  function commas(n) {
-    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  // Built once from config + strings (they are static for a run); cached so the
+  // hot paths (event routing, per-frame standup coloring, HUD) do not allocate.
+  var _defs = null;
+  function buildDefs() {
+    var mc = cfg.missions, s = PB.strings;
+    return [
+      { id: 0, name: s.mWarp,   objective: 'bumpers', need: mc.warp.need,   time: mc.warp.time,   jackpot: mc.warp.jackpot },
+      { id: 1, name: s.mTarget, objective: 'bank',    need: mc.bank.need,   time: mc.bank.time,   jackpot: mc.bank.jackpot },
+      { id: 2, name: s.mRescue, objective: 'rescue',  need: mc.rescue.need, time: mc.rescue.time, jackpot: mc.rescue.jackpot },
+    ];
   }
 
   PB.Missions = {
-    // Built fresh from config + strings so tuning stays in one place.
-    defs: function () {
-      var mc = cfg.missions, s = PB.strings;
-      return [
-        { id: 0, name: s.mWarp,   objective: 'bumpers', need: mc.warp.need,   time: mc.warp.time,   jackpot: mc.warp.jackpot },
-        { id: 1, name: s.mTarget, objective: 'bank',    need: mc.bank.need,   time: mc.bank.time,   jackpot: mc.bank.jackpot },
-        { id: 2, name: s.mRescue, objective: 'rescue',  need: mc.rescue.need, time: mc.rescue.time, jackpot: mc.rescue.jackpot },
-      ];
-    },
+    defs: function () { return _defs || (_defs = buildDefs()); },
 
     create: function () {
       return {

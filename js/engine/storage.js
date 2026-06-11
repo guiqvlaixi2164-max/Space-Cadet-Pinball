@@ -6,7 +6,7 @@
   'use strict';
 
   var KEY = 'pb.save.v1';
-  var VERSION = 1;
+  var VERSION = 2;
 
   function defaults() {
     return {
@@ -17,14 +17,41 @@
         muted: false,
         reducedMotion: false,
         colorblind: false,
-        keymap: { flipperLeft: 'ShiftLeft', flipperRight: 'ShiftRight', plunger: 'Space' },
+        // v2 added nudge and pause bindings (all controls are now remappable).
+        keymap: {
+          flipperLeft: 'ShiftLeft', flipperRight: 'ShiftRight', plunger: 'Space',
+          nudgeLeft: 'ArrowLeft', nudgeRight: 'ArrowRight', nudgeUp: 'ArrowUp',
+          pause: 'KeyP',
+        },
       },
     };
   }
 
+  // Stepwise upgrade functions: each takes a save at version N and returns it at
+  // version N+1, PRESERVING the player's data. New schema versions add an entry
+  // here; data is never discarded on a normal upgrade.
+  var MIGRATIONS = {
+    1: function (d) {
+      // v1 -> v2: backfill the new keymap bindings, keep scores and settings.
+      d.settings = d.settings || {};
+      d.settings.keymap = assign(defaults().settings.keymap, d.settings.keymap || {});
+      d.version = 2;
+      return d;
+    },
+  };
+
   function migrate(d) {
+    if (!d || typeof d !== 'object' || typeof d.version !== 'number') return defaults();
+    // Run upgrades in sequence up to the current version.
+    var guard = 0;
+    while (d.version < VERSION) {
+      var step = MIGRATIONS[d.version];
+      if (!step || guard++ > 100) return defaults();  // unknown gap: safe fallback
+      d = step(d);
+    }
+    if (d.version !== VERSION) return defaults();      // a newer (downgraded) save
+    // Fill any missing fields without clobbering existing values.
     var def = defaults();
-    if (!d || d.version !== VERSION) return def;
     d.settings = assign(def.settings, d.settings || {});
     d.settings.keymap = assign(def.settings.keymap, d.settings.keymap || {});
     if (!Array.isArray(d.highScores)) d.highScores = [];

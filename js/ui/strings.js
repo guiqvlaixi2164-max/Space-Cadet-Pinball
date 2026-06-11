@@ -30,6 +30,10 @@
     rebindLeft: 'Left flipper',
     rebindRight: 'Right flipper',
     rebindPlunger: 'Plunger',
+    rebindNudgeLeft: 'Nudge left',
+    rebindNudgeRight: 'Nudge right',
+    rebindNudgeUp: 'Nudge up',
+    rebindPause: 'Pause',
     back: 'Back',
     on: 'On',
     off: 'Off',
@@ -51,6 +55,18 @@
     ballLabel: 'BALL ',
     launchHint: 'Hold SPACE to launch',
 
+    // First-run onboarding (controls strip + reminders).
+    controlsHint: 'SHIFT Flippers     SPACE Launch     ARROWS Nudge     P Pause',
+    remapHint: 'Keys are rebindable in ESC settings',
+
+    // Mission objective instructions (shown briefly when a mission starts).
+    instrBumpers: 'Hit the pop bumpers!',
+    instrBank: 'Clear the drop-target bank!',
+    instrRescue: 'Hit the lit RESCUE target!',
+
+    // Innovation callouts.
+    dilationReady: 'SLO-MO READY  -  roll the ball through the zone',
+
     // Missions and multiball.
     mWarp: 'WARP SURVEY',
     mTarget: 'TARGET LOCK',
@@ -64,6 +80,11 @@
     mHitStart: 'HIT START',
     mLockLabel: 'LOCK ',
     mMultiballOn: 'MULTIBALL',
+
+    // Innovations HUD.
+    dilationLabel: 'SLO-MO',
+    tableStation: 'STATION',
+    tableAsteroid: 'ASTEROID FIELD',
   };
 
 })(window.PB = window.PB || {});

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>playshot harness</title>
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/ui.css">
+</head>
+<body>
+  <div id="app"><div id="stage">
+    <canvas id="game" width="600" height="900" aria-label="Pinball playfield"></canvas>
+  </div></div>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/util.js"></script>
+  <script src="../js/ui/strings.js"></script>
+  <script src="../js/physics/physics.js"></script>
+  <script src="../js/physics/collision.js"></script>
+  <script src="../js/engine/loop.js"></script>
+  <script src="../js/engine/input.js"></script>
+  <script src="../js/engine/audio.js"></script>
+  <script src="../js/engine/storage.js"></script>
+  <script src="../js/engine/particles.js"></script>
+  <script src="../js/engine/camera.js"></script>
+  <script src="../js/game/ball.js"></script>
+  <script src="../js/game/flipper.js"></script>
+  <script src="../js/game/bumper.js"></script>
+  <script src="../js/game/target.js"></script>
+  <script src="../js/game/ramp.js"></script>
+  <script src="../js/game/plunger.js"></script>
+  <script src="../js/tables/classic.js"></script>
+  <script src="../js/game/table.js"></script>
+  <script src="../js/game/scoring.js"></script>
+  <script src="../js/game/missions.js"></script>
+  <script src="../js/game/transform.js"></script>
+  <script src="../js/game/timedilation.js"></script>
+  <script src="../js/ui/hud.js"></script>
+  <script src="../js/ui/menus.js"></script>
+  <script src="../js/selftest.js"></script>
+  <script src="../js/main.js"></script>
+
+  <script>
+  (function () {
+    function qs(k){ var m=new RegExp('[?&]'+k+'=([^&]*)').exec(location.search); return m?decodeURIComponent(m[1]):''; }
+    var scenario = qs('s') || 'attract';
+    function noop(){}
+
+    function freeze(){ PB.Game.update = noop; }
+
+    function setup(){
+      var app = PB.app;
+      if (!app || !app.game) { setTimeout(setup, 30); return; }
+      var g = app.game;
+
+      // seed some high scores for menu screens
+      app.save.highScores = [
+        {name:'ACE', score:1284500, rank:'Commander'},
+        {name:'BIT', score:740200, rank:'Captain'},
+        {name:'ZAP', score:512000, rank:'Lieutenant'},
+        {name:'QOR', score:288000, rank:'Ensign'},
+        {name:'NEB', score:101000, rank:'Cadet'},
+      ];
+
+      if (scenario === 'attract') { app.screen='attract'; return; }
+
+      // most play scenarios start a fresh game
+      PB.Game.start(g);
+      app.screen = 'play';
+
+      if (scenario === 'launch') {
+        // ball resting uncharged in the lane: show launch hint + controls strip
+        app.controlsTimer = 5;
+        return; // do NOT freeze: let HUD evaluate the lane/hint each frame
+      }
+
+      if (scenario === 'play') {
+        // launch the ball into the playfield and let it bounce naturally
+        var b = g.sim.ball;
+        b.pos.x = 300; b.pos.y = 300; b.prev.x = 300; b.prev.y = 305;
+        b.vel.x = 120; b.vel.y = 380; b.active = true;
+        g.state = 'playing';
+        g.scoring.score = 48250; g.scoring.multiplier = 2;
+        return; // let physics play
+      }
+
+      // ---- frozen HUD states ----
+      g.state = 'playing';
+      g.scoring.score = 48250;
+
+      if (scenario === 'mission') {
+        g.missions.state = 'active';
+        g.missions.active = 0; // warp survey
+        g.missions.progress = 3; g.missions.need = 8; g.missions.timer = 23.7;
+        g.scoring.multiplier = 3;
+        // put ball somewhere visible
+        var b1 = g.sim.ball; b1.pos.x=300; b1.pos.y=420; b1.prev.x=300; b1.prev.y=420;
+      }
+      else if (scenario === 'select') {
+        g.missions.state = 'idle';
+      }
+      else if (scenario === 'multiball') {
+        g.missions.multiball = true;
+        PB.sim.addBall(g.sim, 250, 430, -120, -60);
+        PB.sim.addBall(g.sim, 350, 430, 120, -60);
+        g.scoring.multiplier = 4;
+      }
+      else if (scenario === 'dilation') {
+        var d = g.sim.dilation; d.charge = 1; d.active = true; d.activeTime = 1; d.anyInside = true;
+        var b2 = g.sim.ball; b2.pos.x=250; b2.pos.y=470; b2.prev.x=245; b2.prev.y=460;
+      }
+      else if (scenario === 'dilation_charge') {
+        var dc = g.sim.dilation; dc.charge = 0.55;
+      }
+      else if (scenario === 'dilation_ready') {
+        var dr = g.sim.dilation; dr.charge = 1; dr.active = false;
+        // leave detection state at defaults so the READY callout fires
+      }
+      else if (scenario === 'tilt') {
+        g.sim.tilt.tilted = true; g.sim.tilt.bob = 1;
+      }
+      else if (scenario === 'careful') {
+        g.sim.tilt.bob = 0.8;
+      }
+      else if (scenario === 'ballsave') {
+        g.ballSaveTimer = 3.2;
+      }
+      else if (scenario === 'asteroid') {
+        PB.transform.toggle(g.sim);
+        // run morph to completion quickly
+        for (var k=0;k<200;k++) PB.transform.update(g.sim, 1/120);
+      }
+      else if (scenario === 'message') {
+        PB.Game.setMessage(g, PB.strings.bankCleared);
+      }
+      else if (scenario === 'gameover') {
+        app.screen = 'gameover';
+        g.scoring.score = 357400;
+        app.go = { entering:false, initials:['A','A','A'], pos:0, qualifies:false };
+        freeze(); return;
+      }
+      else if (scenario === 'gameover_entry') {
+        app.screen = 'gameover';
+        g.scoring.score = 999999;
+        app.go = { entering:true, initials:['A','B','C'], pos:1, qualifies:true };
+        freeze(); return;
+      }
+      else if (scenario === 'pause') {
+        app.screen = 'pause'; app.menuIndex = 0; freeze(); return;
+      }
+      else if (scenario === 'settings') {
+        app.screen = 'settings'; app.settingsFrom='attract'; app.menuIndex = 4; freeze(); return;
+      }
+
+      freeze();
+    }
+    setup();
+  })();
+  </script>
+</body>
+</html>

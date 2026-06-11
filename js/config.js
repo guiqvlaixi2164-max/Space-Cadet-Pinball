@@ -39,6 +39,7 @@
       thickness: 13,
       flipSpeed: 26,
       restitution: 0.5,
+      sweepSubsteps: 4,   // intermediate angles tested to avoid pass-through
     },
 
     // Bumper / slingshot tuning (positions are in the table data).
@@ -105,6 +106,8 @@
       chargePerSling: 0.08,
       drainPerSecond: 0.4,
       rippleSpeed: 3.2,
+      edgeBand: 0.4,        // fraction of the radius over which the scale eases
+      maxActiveSeconds: 6,  // hard cap so one activation cannot last forever
     },
 
     // Audio. master is the ceiling under the user volume; the music/sfx levels
@@ -152,9 +155,13 @@
       neonGreen: '#7CFFB2', neonRed: '#ff6b6b',
       wall: '#5870c8', text: '#dff1ff', dim: 'rgba(8,12,28,0.72)',
     },
+    // Based on the Okabe-Ito colorblind-safe categorical palette, which is
+    // designed to stay distinguishable under deuteranopia, protanopia, and
+    // tritanopia. Each game role maps to a distinct Okabe-Ito hue: sky blue,
+    // reddish purple, orange, bluish green, and vermillion.
     colorblind: {
-      neonCyan: '#36e3ff', neonMagenta: '#ff8be6', neonAmber: '#ffc24b',
-      neonGreen: '#5b8dff', neonRed: '#ff9e3d',
+      neonCyan: '#56B4E9', neonMagenta: '#CC79A7', neonAmber: '#E69F00',
+      neonGreen: '#009E73', neonRed: '#D55E00',
       wall: '#7f8fd6', text: '#dff1ff', dim: 'rgba(8,12,28,0.72)',
     },
   };

@@ -77,10 +77,12 @@
     // two deflector walls deploy in Asteroid mode, growing out from their
     // midpoint into the deployed segment below.
     transform: {
+      // Asteroid positions are kept clear of the drop-target bank at x=472
+      // (a bumper disc must not reach it, or the bank becomes unhittable).
       bumpers: [
-        { alt: { x: 110, y: 300, r: 19 } },
-        { alt: { x: 300, y: 150, r: 30 } },
-        { alt: { x: 490, y: 300, r: 19 } },
+        { alt: { x: 120, y: 235, r: 20 } },
+        { alt: { x: 300, y: 160, r: 30 } },
+        { alt: { x: 480, y: 235, r: 20 } },
       ],
       deflectors: [
         [206, 360, 150, 470],

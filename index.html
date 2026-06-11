@@ -32,6 +32,7 @@
     Files added in later phases are stubs today so this order never has to change.
   -->
   <script src="js/config.js"></script>
+  <script src="js/util.js"></script>
   <script src="js/ui/strings.js"></script>
 
   <script src="js/physics/physics.js"></script>
@@ -62,6 +63,9 @@
   <script src="js/ui/hud.js"></script>
   <script src="js/ui/menus.js"></script>
 
+  <!-- Self-test suite (used by ?selftest and tools/selftest-node.js). Harmless
+       to always include: it only defines PB.selfTest and runs nothing on load. -->
+  <script src="js/selftest.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

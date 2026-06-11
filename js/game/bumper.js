@@ -34,13 +34,14 @@
     draw: function (ctx, bumper) {
       var lit = bumper.lit > 0;
       var k = bumper.lit / PB.config.bumpers.litSeconds; // 1..0
+      var reduced = PB.reduced;
       ctx.save();
 
-      // Outer ring.
+      // Outer ring. Under reduced motion the glow does not pulse with the hit.
       ctx.strokeStyle = lit ? PB.config.theme.neonAmber : '#6f86d6';
       ctx.lineWidth = 4;
       ctx.shadowColor = lit ? PB.config.theme.neonAmber : 'rgba(111,134,214,0.7)';
-      ctx.shadowBlur = lit ? 24 * k + 8 : 10;
+      ctx.shadowBlur = reduced ? (lit ? 10 : 8) : (lit ? 24 * k + 8 : 10);
       ctx.beginPath();
       ctx.arc(bumper.x, bumper.y, bumper.r, 0, Math.PI * 2);
       ctx.stroke();

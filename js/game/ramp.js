@@ -10,29 +10,23 @@
     // angle a0 to a1 (radians), with the given radius and number of steps.
     arc: function (cx, cy, radius, a0, a1, steps, opts) {
       var segs = [];
-      var prevx = cx + radius * Math.cos(a0);
-      var prevy = cy + radius * Math.sin(a0);
+      // Deterministic trig so the generated wall geometry is identical across
+      // engines (these walls are static, but ULP differences would still shift
+      // collisions and break cross-machine reproducibility).
+      var prevx = cx + radius * PB.dcos(a0);
+      var prevy = cy + radius * PB.dsin(a0);
       for (var i = 1; i <= steps; i++) {
         var t = a0 + (a1 - a0) * (i / steps);
-        var x = cx + radius * Math.cos(t);
-        var y = cy + radius * Math.sin(t);
+        var x = cx + radius * PB.dcos(t);
+        var y = cy + radius * PB.dsin(t);
         segs.push(PB.makeSegment(prevx, prevy, x, y, opts));
         prevx = x; prevy = y;
       }
       return segs;
     },
-
-    // A straight guide lane: two parallel walls forming a channel. Returns the
-    // wall segments (the lane itself is empty space between them).
-    lane: function (ax, ay, bx, by, halfWidth, opts) {
-      var dx = bx - ax, dy = by - ay;
-      var len = Math.sqrt(dx * dx + dy * dy) || 1;
-      var nx = -dy / len * halfWidth, ny = dx / len * halfWidth;
-      return [
-        PB.makeSegment(ax + nx, ay + ny, bx + nx, by + ny, opts),
-        PB.makeSegment(ax - nx, ay - ny, bx - nx, by - ny, opts),
-      ];
-    },
+    // Note: a previous straight-channel "lane" helper was removed as dead code
+    // (it was never called). Adding real routed ramps/habitrails is a content
+    // task for a later table revision and needs hands-on playtesting to tune.
   };
 
 })(window.PB = window.PB || {});

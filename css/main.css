@@ -41,6 +41,8 @@ canvas#game {
   display: block;
   width: 100%;
   height: 100%;
+  /* Touch controls handle gestures; stop the browser scrolling/zooming on them. */
+  touch-action: none;
   image-rendering: optimizeQuality;
   border-radius: 10px;
   box-shadow:

@@ -19,6 +19,7 @@
         rest: spec.rest,
         active: spec.active,
         angle: spec.rest,
+        prevAngle: spec.rest,
         omega: 0,
         pressed: false,
         a: { x: spec.pivotX, y: spec.pivotY },
@@ -30,10 +31,12 @@
     },
 
     _recompute: function (fl) {
+      // Deterministic trig (PB.dcos/dsin) keeps the flipper geometry, and thus
+      // the whole simulation, bit-reproducible across JS engines.
       fl.a.x = fl.pivot.x;
       fl.a.y = fl.pivot.y;
-      fl.b.x = fl.pivot.x + fl.length * Math.cos(fl.angle);
-      fl.b.y = fl.pivot.y + fl.length * Math.sin(fl.angle);
+      fl.b.x = fl.pivot.x + fl.length * PB.dcos(fl.angle);
+      fl.b.y = fl.pivot.y + fl.length * PB.dsin(fl.angle);
     },
 
     // Slew the flipper toward its target angle for one fixed step.
@@ -45,7 +48,27 @@
       var delta = target - fl.angle;
       if (Math.abs(delta) <= maxStep) fl.angle = target;
       else fl.angle += (delta > 0 ? 1 : -1) * maxStep;
+      fl.prevAngle = prev;
       fl.omega = (fl.angle - prev) / dt;
+      PB.Flipper._recompute(fl);
+    },
+
+    // Catch a ball the flipper swept across this step. A hard flip can rotate the
+    // tip by close to a ball diameter per step, so a single overlap test at the
+    // final angle can miss the ball entirely (the classic "flipper pass-through").
+    // We re-test resolveOverlap at a few intermediate angles between the previous
+    // and current angle, then restore the final angle. omega is constant over the
+    // step, so the imparted kick is the same at every sub-angle.
+    sweepResolve: function (world, fl, ball, substeps) {
+      var a0 = fl.prevAngle, a1 = fl.angle;
+      if (a0 === a1 || substeps < 2) { PB.Flipper.resolveOverlap(world, fl, ball); return; }
+      var saved = fl.angle;
+      for (var k = 1; k <= substeps; k++) {
+        fl.angle = a0 + (a1 - a0) * (k / substeps);
+        PB.Flipper._recompute(fl);
+        if (PB.Flipper.resolveOverlap(world, fl, ball)) break; // caught: stop early
+      }
+      fl.angle = saved;
       PB.Flipper._recompute(fl);
     },
 

@@ -45,6 +45,74 @@
       }
 
       sim.transform = state;
+      PB.transform._assertClear(sim, state);
+    },
+
+    // Dev assertion: warn if any bumper disc (in either mode) would overlap a
+    // drop-target or standup segment, which would make that target unhittable.
+    _assertClear: function (sim, state) {
+      if (!window.console || !console.warn) return;
+      var segs = [];
+      if (sim.bank) segs = segs.concat(sim.bank.targets);
+      if (sim.standups) segs = segs.concat(sim.standups);
+      var ballR = PB.config.physics.ballRadius;
+      for (var i = 0; i < state.bumpers.length; i++) {
+        var m = state.bumpers[i];
+        checkDisc(m.home, i, 'Station'); checkDisc(m.alt, i, 'Asteroid');
+      }
+      function checkDisc(c, idx, mode) {
+        for (var j = 0; j < segs.length; j++) {
+          var s = segs[j], ax = s.a.x, ay = s.a.y, ex = s.b.x - ax, ey = s.b.y - ay;
+          var L2 = ex * ex + ey * ey || 1;
+          var tt = ((c.x - ax) * ex + (c.y - ay) * ey) / L2;
+          tt = tt < 0 ? 0 : (tt > 1 ? 1 : tt);
+          var dx = c.x - (ax + ex * tt), dy = c.y - (ay + ey * tt);
+          var min = c.r + ballR;
+          if (dx * dx + dy * dy < min * min) {
+            console.warn('transform: bumper ' + idx + ' (' + mode + ') overlaps a ' +
+              s.kind + ' target; it may be unhittable.');
+          }
+        }
+      }
+    },
+
+    // Push any ball that a moving bumper or deploying deflector has grown into
+    // back out along the surface normal, cancelling the inward velocity. The
+    // swept ball-vs-static solver cannot see an obstacle moving into a still
+    // ball, so without this a morph can pin or jolt a resting ball. Cheap: only
+    // runs while the table is actually morphing.
+    depenetrate: function (sim) {
+      var s = sim.transform;
+      if (!s) return;
+      var bodies = sim.world.bodies, skin = sim.world.skin, i, k;
+      for (i = 0; i < bodies.length; i++) {
+        var b = bodies[i];
+        if (!b.active) continue;
+        for (k = 0; k < s.bumpers.length; k++) {
+          var c = s.bumpers[k].body;
+          var dx = b.pos.x - c.x, dy = b.pos.y - c.y, rr = b.radius + c.r;
+          var d2 = dx * dx + dy * dy;
+          if (d2 < rr * rr && d2 > 1e-9) pushOut(b, dx, dy, Math.sqrt(d2), rr, skin);
+        }
+        for (k = 0; k < s.deflectors.length; k++) {
+          var seg = s.deflectors[k].seg;
+          if (!seg.active) continue;
+          var ax = seg.a.x, ay = seg.a.y, ex = seg.b.x - ax, ey = seg.b.y - ay;
+          var L2 = ex * ex + ey * ey;
+          if (L2 < 1e-9) continue;
+          var tt = ((b.pos.x - ax) * ex + (b.pos.y - ay) * ey) / L2;
+          tt = tt < 0 ? 0 : (tt > 1 ? 1 : tt);
+          var qx = b.pos.x - (ax + ex * tt), qy = b.pos.y - (ay + ey * tt);
+          var dd2 = qx * qx + qy * qy;
+          if (dd2 < b.radius * b.radius && dd2 > 1e-9) pushOut(b, qx, qy, Math.sqrt(dd2), b.radius, skin);
+        }
+      }
+      function pushOut(b, dx, dy, d, target, skin) {
+        var nx = dx / d, ny = dy / d, push = target - d + skin;
+        b.pos.x += nx * push; b.pos.y += ny * push;
+        var vn = b.vel.x * nx + b.vel.y * ny;
+        if (vn < 0) { b.vel.x -= vn * nx; b.vel.y -= vn * ny; }
+      }
     },
 
     // Flip the target mode; update() animates the rest.
