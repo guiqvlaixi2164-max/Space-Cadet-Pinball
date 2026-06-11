@@ -5,6 +5,25 @@ This project follows the phased build plan in `PLAN.md`. Post-v1 UX work follows
 the remediation plan in `WORKFLOW.md` (fixing the `PLAYTEST.md` / `caveat.md`
 findings).
 
+## UX Phase 4 - Feedback and game feel
+
+Cleaner notifications and a livelier bumper feel. The self-test stays all-OK; the
+only physics change (D3) is a pure function of the ball's approach speed and does
+not disturb any asserted check (the canned signature path never contacts a bumper).
+
+### Changed
+- A promotion now shows a single centered banner. The duplicate ball-anchored
+  "PROMOTED" particle popup (a second notice in a different color/place for the
+  same event) was removed.
+- Pop bumpers now kick harder the faster the ball arrives: a component proportional
+  to the approach speed is added to the base kick, capped, so a busy bumper nest
+  escalates instead of feeling uniform (`cfg.bumpers.kickSpeedFactor`, `kickMax`).
+  Verified numerically: a 1200 px/s pop returns 1324 px/s vs 924 under the old
+  fixed kick. Deterministic (a pure function of the approach speed).
+- A nudge now gives a small camera bump so it feels physical (alongside the ball
+  jolt and the rising tilt meter). Gated behind reduced motion and only on a nudge
+  that actually applies (not while tilted).
+
 ## UX Phase 3 - Playfield readability and active-objective cues
 
 Makes the objective-of-the-moment and the scoring elements legible on the

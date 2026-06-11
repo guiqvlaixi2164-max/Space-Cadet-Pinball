@@ -42,8 +42,11 @@
       sweepSubsteps: 4,   // intermediate angles tested to avoid pass-through
     },
 
-    // Bumper / slingshot tuning (positions are in the table data).
-    bumpers: { restitution: 0.42, kick: 420, litSeconds: 0.18 },
+    // Bumper / slingshot tuning (positions are in the table data). kick is the
+    // base outward impulse; kickSpeedFactor adds a component proportional to the
+    // ball's approach speed (so a fast pop hits harder and bumper nests feel
+    // lively, not samey), capped at kickMax.
+    bumpers: { restitution: 0.42, kick: 420, kickSpeedFactor: 0.35, kickMax: 820, litSeconds: 0.18 },
     slingshots: { restitution: 0.75, kick: 260, litSeconds: 0.14 },
     dropTargets: { resetSeconds: 2.5 },
 

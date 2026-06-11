@@ -549,6 +549,13 @@
       nudgeL: e.nudgeL, nudgeR: e.nudgeR, nudgeU: e.nudgeU,
     }, dt);
 
+    // Nudge feedback: a small camera bump so a nudge feels physical (the ball also
+    // jolts and the tilt meter climbs). Only when the nudge actually applies (not
+    // tilted) and not under reduced motion.
+    if (!app.game.sim.tilt.tilted && (e.nudgeL || e.nudgeR || e.nudgeU) && !app.reduced) {
+      PB.camera.shake(app.camera, 0.18);
+    }
+
     // Sound + particles + screen shake from this step's events and cues.
     reactToPlay();
 
@@ -614,8 +621,10 @@
         if (!reduced) PB.particles.burst(app.particles, bx, by, 24, T.neonCyan, 340);
         PB.particles.popup(app.particles, bx, by - 18, S.mMultiball, T.neonCyan);
       } else if (name === 'rankup') {
+        // The promotion is announced by the centered "PROMOTED: <rank>" banner
+        // (PB.Game.setMessage); no duplicate ball-anchored popup (it double-notified
+        // the same event in a second color/place). Just the celebratory shake here.
         shake(0.45);
-        PB.particles.popup(app.particles, bx, by - 18, S.promoted.replace(': ', ''), T.neonGreen);
       } else if (name === 'bank') {
         shake(0.3);
         PB.particles.popup(app.particles, bx, by - 18, '+' + PB.format.commas(cfg.score.dropBank), T.neonGreen);

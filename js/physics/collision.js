@@ -159,6 +159,17 @@
         if (slow && !flipperMoving) nvn = 0;
         vt *= (1 - fric);
 
+        // Pop bumpers kick harder the faster the ball arrives, so a busy bumper
+        // nest escalates instead of feeling uniform. Deterministic (a pure
+        // function of the approach speed vn). Bumpers only; walls/slingshots keep
+        // their fixed kick.
+        if (hitCircle && kick > 0) {
+          var bc = PB.config.bumpers;
+          var approach = vn < 0 ? -vn : 0;
+          kick += approach * bc.kickSpeedFactor;
+          if (kick > bc.kickMax) kick = bc.kickMax;
+        }
+
         rvx = hit.nx * nvn + tnx * vt;
         rvy = hit.ny * nvn + tny * vt;
         Vx = rvx + surfx + hit.nx * kick;

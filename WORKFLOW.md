@@ -137,6 +137,15 @@ Risk: low. Verify: self-test; doc review.
   gate); C4 idle pop bumpers gained a breathing inner ring so they read as live;
   E1 the white core, ring, and chevron are shape cues (not color-only) and go
   steady under reduced motion. Render-time only; the sim is untouched.
-- [ ] Phase 4 - Feedback and game feel
+- [x] Phase 4 - Feedback and game feel (self-test all-OK; signature still
+  `d302b753` because the canned test path never contacts a bumper, so D3 changes
+  real play without disturbing any asserted check; no console errors). D1 drops the
+  duplicate rank-up popup so a promotion shows one banner only (verified
+  `p4_play_promo`); D3 adds a speed-proportional component to the bumper kick
+  (`cfg.bumpers.kickSpeedFactor/kickMax`), numerically verified (a 1200 px/s pop
+  now returns 1324 vs 924 under the old fixed kick); F adds a small reduced-motion-
+  gated camera bump on an effective nudge. The D1 dedupe also removes the worst
+  banner/popup overlap (the remaining message banner y470 and callout y520 are
+  vertically separated).
 - [ ] Phase 5 - Table depth (design)
 - [ ] Phase 6 - Code and docs cleanup
