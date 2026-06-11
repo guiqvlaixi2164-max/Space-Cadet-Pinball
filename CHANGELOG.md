@@ -5,6 +5,50 @@ This project follows the phased build plan in `PLAN.md`. Post-v1 UX work follows
 the remediation plan in `WORKFLOW.md` (fixing the `PLAYTEST.md` / `caveat.md`
 findings).
 
+## UX Phase 3 - Playfield readability and active-objective cues
+
+Makes the objective-of-the-moment and the scoring elements legible on the
+playfield. Render-time only; the simulation is unchanged (self-test all-OK,
+signature `d302b753`). Verified in default, colorblind, and reduced-motion modes.
+
+### Added
+- An animated "shoot here now" cue (a pulsing ring plus a bobbing chevron) that
+  tracks whatever the current mission wants: the pop bumpers for Warp Survey, the
+  still-up drop targets for Target Lock, the lit RESCUE standup for Rescue, and the
+  START gate while a mission is selected (`drawObjectiveCues`). Under reduced motion
+  the ring and chevron are steady but still drawn, so the cue is never color- or
+  motion-only.
+- Idle pop bumpers gained a breathing inner ring so a resting bumper reads as a
+  live scoring bumper rather than a passive circle (steady under reduced motion).
+
+### Changed
+- Standup targets now render as clear physical targets: a backing plate, a bright
+  mission-colored face with a white core and label when lit, and a steady,
+  still-visible target when unlit (previously a faint dash). The white core is a
+  redundant, non-color "armed" cue that survives the colorblind palette and reduced
+  motion.
+
+## UX Phase 2 - HUD layout and legibility
+
+Fixes the crowded, partly-broken HUD. UI-layer only; the simulation is unchanged
+(self-test all-OK, signature `d302b753`).
+
+### Changed
+- The rank and multiplier now share one measured, centered line under the score,
+  and the playfield standup labels render below their bars, so the center label no
+  longer collides with the rank/multiplier (the old top-center garble is gone).
+- The time-dilation charge is read off the zone ring itself (which already fills
+  with charge) plus a tethered "SLO-MO" / "SLO-MO READY" label under it; the small,
+  far-left edge meter (disconnected from its zone) was removed.
+- The table-mode indicator (Innovation 1) is now a legible top-right badge in the
+  mode's accent color (cyan Station / amber Asteroid) with a status dot, instead of
+  near-invisible dim text at the bottom.
+- The plunger charge readout moved out of the off-playfield gutter into an in-lane
+  track: the lane fills amber from the bottom while charging, with a green
+  "skill shot" band near the top and tick marks for repeatable launch power.
+- Ball save is now a shrinking ring around the live ball plus a small top-left tag,
+  so it no longer draws over the flippers.
+
 ## UX Phase 1 - Onboarding and first-run clarity
 
 First-run guidance so a cold player can actually learn the game. UI-layer only;

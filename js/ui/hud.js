@@ -22,17 +22,27 @@
       ctx.fillText(PB.format.commas(sc.score), w / 2, 38);
       ctx.shadowBlur = 0;
 
-      // Rank under the score.
-      ctx.font = '600 13px "Segoe UI", Arial, sans-serif';
+      // Rank and multiplier on ONE compact line under the score, measured and
+      // centered as a group. This keeps the multiplier out of the band where the
+      // playfield's center standup label sits, fixing the old overlap.
+      var rankName = PB.Scoring.rank(sc).name;
+      var multStr = sc.multiplier > 1 ? ('x' + sc.multiplier) : '';
+      ctx.textAlign = 'left';
+      ctx.font = '600 14px "Segoe UI", Arial, sans-serif';
+      var rankW = ctx.measureText(rankName).width;
+      var gap = 12, multW = 0;
+      if (multStr) { ctx.font = '800 16px "Segoe UI", Arial, sans-serif'; multW = ctx.measureText(multStr).width; }
+      var totalW = rankW + (multStr ? gap + multW : 0);
+      var startX = w / 2 - totalW / 2;
+      ctx.font = '600 14px "Segoe UI", Arial, sans-serif';
       ctx.fillStyle = 'rgba(223,241,255,0.85)';
-      ctx.fillText(PB.Scoring.rank(sc).name, w / 2, 78);
-
-      // Multiplier badge.
-      if (sc.multiplier > 1) {
-        ctx.font = '800 18px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(rankName, startX, 74);
+      if (multStr) {
+        ctx.font = '800 16px "Segoe UI", Arial, sans-serif';
         ctx.fillStyle = t.neonMagenta;
-        ctx.fillText('x' + sc.multiplier, w / 2, 96);
+        ctx.fillText(multStr, startX + rankW + gap, 72);
       }
+      ctx.textAlign = 'center';
 
       // Ball number, top-left.
       ctx.textAlign = 'left';
@@ -48,17 +58,29 @@
         ctx.fill();
       }
 
-      // Ball save countdown.
+      // Ball save: a shrinking ring around the live ball plus a small HUD tag in
+      // the top-left cluster, so the timer sits where the player's eye already is
+      // (on the ball) and never covers the flippers.
       if (game.ballSaveTimer > 0) {
         var frac = game.ballSaveTimer / cfg.game.ballSaveSeconds;
+        var bsv = game.sim && game.sim.ball;
+        if (bsv && bsv.active) {
+          ctx.save();
+          ctx.strokeStyle = t.neonGreen;
+          ctx.globalAlpha = 0.35 + 0.5 * frac;
+          ctx.lineWidth = 2;
+          ctx.shadowColor = t.neonGreen;
+          ctx.shadowBlur = PB.reduced ? 0 : 8;
+          ctx.beginPath();
+          ctx.arc(bsv.pos.x, bsv.pos.y, bsv.radius + 5 + frac * 12, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+        ctx.textAlign = 'left';
+        ctx.font = '700 11px "Segoe UI", Arial, sans-serif';
+        ctx.fillStyle = t.neonGreen;
+        ctx.fillText('BALL SAVE', 34, 88);
         ctx.textAlign = 'center';
-        ctx.font = '700 13px "Segoe UI", Arial, sans-serif';
-        ctx.fillStyle = t.neonGreen;
-        ctx.fillText('BALL SAVE', w / 2, 820);
-        ctx.fillStyle = 'rgba(124,255,178,0.25)';
-        ctx.fillRect(w / 2 - 60, 838, 120, 5);
-        ctx.fillStyle = t.neonGreen;
-        ctx.fillRect(w / 2 - 60, 838, 120 * frac, 5);
       }
 
       // Launch prompt: shown while the ball rests uncharged in the plunger lane,
@@ -78,9 +100,9 @@
         ctx.restore();
       }
 
-      // Tilt meter on the right edge; time-dilation meter on the left.
+      // Tilt meter on the right edge. (The time-dilation charge now reads off the
+      // zone ring itself, see js/game/timedilation.js, so there is no edge meter.)
       PB.Hud.drawTiltMeter(ctx, game);
-      PB.Hud.drawDilationMeter(ctx, game);
       PB.Hud.drawTableMode(ctx, game);
 
       // Mission status and multiball lock (top center, under the rank/multiplier).
@@ -136,36 +158,28 @@
       ctx.restore();
     },
 
-    // Time-dilation charge meter on the left edge (mirrors the tilt meter).
-    drawDilationMeter: function (ctx, game) {
-      var cfg = PB.config, t = cfg.theme, d = game.sim.dilation;
-      if (!d || !d.zone) return;
-      var x = 14, y = 120, h = 150;
-      ctx.save();
-      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, 8, h);
-      var col = d.active ? '#aef6ff' : (d.charge >= 1 ? t.neonCyan : 'rgba(86,180,233,0.85)');
-      ctx.fillStyle = col;
-      ctx.fillRect(x, y + h * (1 - d.charge), 8, h * d.charge);
-      ctx.fillStyle = d.active ? t.neonCyan : 'rgba(223,241,255,0.55)';
-      ctx.font = '600 10px "Segoe UI", Arial, sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText(PB.strings.dilationLabel, x - 2, y - 8);
-      ctx.restore();
-    },
-
-    // Current table mode (Innovation 1), dim at the bottom center so the player
-    // can see which layout is active and that it changes.
+    // Current table mode (Innovation 1) as a legible top-right badge in the mode's
+    // accent color, so the player can always see which layout is active. The big
+    // banner on an actual change is raised separately (drawCallout in main.js).
     drawTableMode: function (ctx, game) {
-      var s = game.sim.transform;
+      var s = game.sim.transform, cfg = PB.config, t = cfg.theme;
       if (!s) return;
-      var label = s.p >= 0.5 ? PB.strings.tableAsteroid : PB.strings.tableStation;
+      var asteroid = s.p >= 0.5;
+      var label = asteroid ? PB.strings.tableAsteroid : PB.strings.tableStation;
+      var col = asteroid ? t.neonAmber : t.neonCyan;
       ctx.save();
-      ctx.textAlign = 'center';
-      ctx.font = '700 11px "Segoe UI", Arial, sans-serif';
-      ctx.fillStyle = 'rgba(223,241,255,0.5)';
-      ctx.fillText(label, PB.config.view.width / 2, 884);
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = col;
+      ctx.shadowColor = col;
+      ctx.shadowBlur = PB.reduced ? 0 : 6;
+      ctx.font = '700 12px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(label, cfg.view.width - 14, 44);
+      // Small status dot to the left of the label.
+      var dotX = cfg.view.width - 16 - ctx.measureText(label).width - 8;
+      ctx.beginPath();
+      ctx.arc(dotX, 50, 3, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     },
 

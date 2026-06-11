@@ -46,6 +46,23 @@
       ctx.arc(bumper.x, bumper.y, bumper.r, 0, Math.PI * 2);
       ctx.stroke();
 
+      // Idle "live" look: a breathing inner ring so a resting bumper reads as an
+      // active scoring bumper rather than a passive circle. Steady under reduced
+      // motion (no pulse), but still drawn so the cue is never color-only.
+      if (!lit) {
+        var pulse = reduced ? 0.55 : 0.5 + 0.5 * Math.sin(performance.now() / 420 + bumper.x);
+        ctx.save();
+        ctx.globalAlpha = 0.22 + 0.32 * pulse;
+        ctx.strokeStyle = PB.config.theme.neonCyan;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = PB.config.theme.neonCyan;
+        ctx.shadowBlur = reduced ? 0 : 6;
+        ctx.beginPath();
+        ctx.arc(bumper.x, bumper.y, bumper.r * 0.78, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
       // Cap.
       var g = ctx.createRadialGradient(
         bumper.x - bumper.r * 0.3, bumper.y - bumper.r * 0.3, bumper.r * 0.2,

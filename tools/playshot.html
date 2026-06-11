@@ -47,10 +47,18 @@
 
     function freeze(){ PB.Game.update = noop; }
 
+    // Optional accessibility overrides: ?cb=1 colorblind palette, ?rm=1 reduced motion.
+    function applyA11y(){
+      var app = PB.app; if (!app) return;
+      if (qs('cb')) { app.save.settings.colorblind = true; PB.applyPalette(true); }
+      if (qs('rm')) { app.save.settings.reducedMotion = true; app.reduced = PB.reduced = true; }
+    }
+
     function setup(){
       var app = PB.app;
       if (!app || !app.game) { setTimeout(setup, 30); return; }
       var g = app.game;
+      applyA11y();
 
       // seed some high scores for menu screens
       app.save.highScores = [
@@ -89,11 +97,28 @@
 
       if (scenario === 'mission') {
         g.missions.state = 'active';
-        g.missions.active = 0; // warp survey
+        g.missions.active = 0; // warp survey -> bumper cues
         g.missions.progress = 3; g.missions.need = 8; g.missions.timer = 23.7;
         g.scoring.multiplier = 3;
         // put ball somewhere visible
         var b1 = g.sim.ball; b1.pos.x=300; b1.pos.y=420; b1.prev.x=300; b1.prev.y=420;
+      }
+      else if (scenario === 'mission_bank') {
+        g.missions.state = 'active';
+        g.missions.active = 1; // target lock -> drop-bank cues
+        g.missions.progress = 0; g.missions.need = 1; g.missions.timer = 27.5;
+        var bb = g.sim.ball; bb.pos.x=300; bb.pos.y=500; bb.prev.x=300; bb.prev.y=500;
+      }
+      else if (scenario === 'mission_rescue') {
+        g.missions.state = 'active';
+        g.missions.active = 2; // rescue -> RESCUE standup cue
+        g.missions.progress = 1; g.missions.need = 3; g.missions.timer = 16.0;
+        var br = g.sim.ball; br.pos.x=300; br.pos.y=500; br.prev.x=300; br.prev.y=500;
+      }
+      else if (scenario === 'selected') {
+        g.missions.state = 'selected';
+        g.missions.selected = 0; // START gate cue
+        var bsel = g.sim.ball; bsel.pos.x=300; bsel.pos.y=500; bsel.prev.x=300; bsel.prev.y=500;
       }
       else if (scenario === 'select') {
         g.missions.state = 'idle';
@@ -123,6 +148,10 @@
       }
       else if (scenario === 'ballsave') {
         g.ballSaveTimer = 3.2;
+        var bs = g.sim.ball; bs.pos.x=240; bs.pos.y=360; bs.prev.x=236; bs.prev.y=352;
+      }
+      else if (scenario === 'charging') {
+        g.sim.plunger.charge = 0.72;  // mid-pull: in-lane charge track visible
       }
       else if (scenario === 'asteroid') {
         PB.transform.toggle(g.sim);

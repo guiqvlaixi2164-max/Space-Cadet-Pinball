@@ -50,28 +50,43 @@
     },
 
     draw: function (ctx, plunger, laneX, laneW) {
-      var cfg = PB.config.plunger;
+      var cfg = PB.config.plunger, theme = PB.config.theme;
       var headY = cfg.restY + plunger.charge * cfg.maxPull;
       var cx = laneX + laneW / 2;
+      var innerX = laneX + 4, innerW = laneW - 8;
+
+      // Charge readout lives inside the launch lane (on-playfield, where the player
+      // aims), not in the off-field gutter. It appears only while charging: the
+      // lane fills amber from the bottom, with a brighter green "skill shot" band
+      // near the top and tick marks for repeatable power.
+      if (plunger.charge > 0) {
+        var trackBot = 890, trackTop = 700, trackH = trackBot - trackTop;
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        ctx.fillRect(innerX, trackTop, innerW, trackH);
+        ctx.fillStyle = 'rgba(124,255,178,0.16)';      // skill-shot band (top ~16%)
+        ctx.fillRect(innerX, trackTop, innerW, trackH * 0.16);
+        var fillH = trackH * plunger.charge;
+        var skill = plunger.charge >= 0.84;
+        ctx.fillStyle = skill ? theme.neonGreen : theme.neonAmber;
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.shadowBlur = PB.reduced ? 0 : 8;
+        ctx.fillRect(innerX, trackBot - fillH, innerW, fillH);
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+        ctx.lineWidth = 1;
+        for (var k = 1; k < 4; k++) {
+          var ty = trackBot - trackH * (k / 4);
+          ctx.beginPath(); ctx.moveTo(innerX, ty); ctx.lineTo(innerX + innerW, ty); ctx.stroke();
+        }
+      }
 
       // Shaft.
       ctx.fillStyle = '#3a4566';
       ctx.fillRect(cx - 3, headY, 6, PB.config.view.height - headY);
 
       // Head.
-      ctx.fillStyle = plunger.charge > 0 ? PB.config.theme.neonAmber : '#9fb0d8';
+      ctx.fillStyle = plunger.charge > 0 ? theme.neonAmber : '#9fb0d8';
       ctx.fillRect(laneX + 4, headY, laneW - 8, 10);
-
-      // Charge meter to the right of the lane.
-      if (plunger.charge > 0) {
-        var mx = laneX + laneW + 6;
-        var mh = 120;
-        var my = PB.config.view.height - 40 - mh;
-        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-        ctx.strokeRect(mx, my, 6, mh);
-        ctx.fillStyle = PB.config.theme.neonAmber;
-        ctx.fillRect(mx, my + mh * (1 - plunger.charge), 6, mh * plunger.charge);
-      }
     },
   };
 

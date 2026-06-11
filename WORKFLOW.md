@@ -120,8 +120,23 @@ Risk: low. Verify: self-test; doc review.
   lane, per-objective mission instructions, and rising-edge "SLO-MO READY" /
   table-transform callouts (`drawCallout`). All app/UI-layer only; the simulation
   was untouched.
-- [ ] Phase 2 - HUD layout and legibility
-- [ ] Phase 3 - Playfield readability and active-objective cues
+- [x] Phase 2 - HUD layout and legibility (self-test all-OK, signature unchanged
+  `d302b753`, no console errors; verified by `tools/shots/p2_*`). B1 rank+multiplier
+  collapsed to one measured/centered line and standup labels moved below their bars
+  (no more top-center garble); B2 edge dilation meter removed, the zone ring is now
+  the primary readout with a tethered "SLO-MO [READY]" label; B3 table mode is a
+  legible top-right accent-colored badge; B4 plunger charge moved into an in-lane
+  track (amber fill + green skill band + ticks) off the gutter; B5 ball-save is now
+  a shrinking ring on the ball plus a top-left tag, off the flippers.
+- [x] Phase 3 - Playfield readability and active-objective cues (self-test all-OK,
+  signature unchanged `d302b753`, no console errors; verified by `tools/shots/p3_*`,
+  including colorblind `cb=1` and reduced-motion `rm=1` variants). C1 standups now
+  render as clear targets (backing plate, bright face + white core when lit, still
+  visible when unlit); C2 an animated pulsing-ring + bobbing-chevron "shoot here"
+  cue tracks the active objective (bumpers / drop bank / rescue target / start
+  gate); C4 idle pop bumpers gained a breathing inner ring so they read as live;
+  E1 the white core, ring, and chevron are shape cues (not color-only) and go
+  steady under reduced motion. Render-time only; the sim is untouched.
 - [ ] Phase 4 - Feedback and game feel
 - [ ] Phase 5 - Table depth (design)
 - [ ] Phase 6 - Code and docs cleanup

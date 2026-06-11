@@ -150,6 +150,16 @@
         ctx.globalAlpha = 1;
       }
 
+      // Tethered label under the ring so the charge meter reads as belonging to
+      // this zone (it is the primary readout now that the edge meter is gone).
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+      ctx.textAlign = 'center';
+      ctx.font = '700 11px "Segoe UI", Arial, sans-serif';
+      if (d.active) { ctx.fillStyle = t.neonCyan; ctx.fillText(PB.strings.dilationLabel, z.x, z.y + z.r + 16); }
+      else if (armed) { ctx.fillStyle = t.neonCyan; ctx.fillText(PB.strings.dilationLabel + ' READY', z.x, z.y + z.r + 16); }
+      else { ctx.fillStyle = 'rgba(160,190,230,0.55)'; ctx.fillText(PB.strings.dilationLabel, z.x, z.y + z.r + 16); }
+
       ctx.restore();
     },
   };

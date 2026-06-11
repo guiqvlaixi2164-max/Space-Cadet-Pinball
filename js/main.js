@@ -409,34 +409,107 @@
     PB.Flipper.draw(ctx, sim.left);
     PB.Flipper.draw(ctx, sim.right);
     PB.Plunger.draw(ctx, sim.plunger, sim.lane.x, sim.lane.w);
+    // "Shoot here now" cues sit above the elements but under the ball.
+    drawObjectiveCues(ctx, sim);
     for (i = 0; i < world.bodies.length; i++) {
       if (world.bodies[i].active) PB.Ball.draw(ctx, world.bodies[i], app._alpha || 0);
     }
   }
 
-  // A standup target: lit (with its label) when armed by the mission state,
-  // otherwise a dim bar. Color comes from the mission state machine.
+  // A standup target. Rendered as a clear physical target (a backing plate plus a
+  // face) so it reads as something to shoot, not a faint dash: lit -> bright
+  // mission-colored face with a white core and its label; unlit -> a steady,
+  // still-visible dim target. The white core is a redundant (non-color) "armed"
+  // cue that survives the colorblind palette and reduced motion.
   function drawStandup(ctx, seg) {
     var col = PB.Missions.standupColor(app.game, seg);
+    var ax = seg.a.x, ay = seg.a.y, bx = seg.b.x, by = seg.b.y;
     ctx.save();
     ctx.lineCap = 'round';
-    ctx.lineWidth = 7;
+
+    // Backing plate: always present so the target looks like a physical object.
+    ctx.strokeStyle = 'rgba(40,52,90,0.9)';
+    ctx.lineWidth = 12;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+
     if (col) {
       ctx.strokeStyle = col;
+      ctx.lineWidth = 8;
       ctx.shadowColor = col;
       ctx.shadowBlur = app.reduced ? 0 : 14;
-    } else {
-      ctx.strokeStyle = 'rgba(120,140,180,0.35)';
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      // Bright white core: a shape/brightness cue independent of hue.
       ctx.shadowBlur = 0;
-    }
-    ctx.beginPath(); ctx.moveTo(seg.a.x, seg.a.y); ctx.lineTo(seg.b.x, seg.b.y); ctx.stroke();
-    if (col && !app.reduced) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      // Label below the bar (never under the top HUD column).
       ctx.fillStyle = col;
       ctx.font = '600 9px "Segoe UI", Arial, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(seg.name, (seg.a.x + seg.b.x) / 2, Math.min(seg.a.y, seg.b.y) - 8);
+      ctx.fillText(seg.name, (ax + bx) / 2, Math.max(ay, by) + 15);
+    } else {
+      // Unlit but still clearly a target (more visible than the old faint dash).
+      ctx.strokeStyle = 'rgba(150,170,210,0.5)';
+      ctx.lineWidth = 5;
+      ctx.shadowBlur = 0;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
     }
     ctx.restore();
+  }
+
+  // Animated "shoot here now" cue on whatever element the current mission wants:
+  // a pulsing ring plus a bobbing chevron pointing at the target. Under reduced
+  // motion the ring and chevron are steady (still a redundant, non-color cue). The
+  // animation is render-time only and never touches the deterministic simulation.
+  function drawObjectiveCues(ctx, sim) {
+    var g = app.game; if (!g || !g.missions) return;
+    var m = g.missions, reduced = app.reduced;
+    var now = (typeof performance !== 'undefined') ? performance.now() : 0;
+    var pulse = reduced ? 0.6 : 0.5 + 0.5 * Math.sin(now / 300);
+    var bob = reduced ? 0 : 3 * Math.sin(now / 300);
+    var col = cfg.theme.neonAmber, i, seg;
+
+    function cue(x, y, r) {
+      ctx.save();
+      ctx.globalAlpha = 0.4 + 0.45 * pulse;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = col;
+      ctx.shadowBlur = reduced ? 0 : 10;
+      ctx.beginPath(); ctx.arc(x, y, r + 5, 0, Math.PI * 2); ctx.stroke();
+      // Chevron above the target, pointing down at it.
+      ctx.globalAlpha = 0.7 + 0.3 * pulse;
+      ctx.shadowBlur = 0;
+      var cy = y - r - 12 + bob;
+      ctx.beginPath();
+      ctx.moveTo(x - 5, cy); ctx.lineTo(x + 5, cy); ctx.lineTo(x, cy + 6); ctx.closePath();
+      ctx.fillStyle = col; ctx.fill();
+      ctx.restore();
+    }
+    function cueSeg(s) { cue((s.a.x + s.b.x) / 2, (s.a.y + s.b.y) / 2, 12); }
+
+    if (m.state === 'selected') {
+      for (i = 0; i < sim.standups.length; i++) {
+        if (sim.standups[i].role === 'start') cueSeg(sim.standups[i]);
+      }
+    } else if (m.state === 'active') {
+      var d = PB.Missions.defs()[m.active];
+      if (d.objective === 'bumpers') {
+        for (i = 0; i < sim.world.circles.length; i++) {
+          var c = sim.world.circles[i]; cue(c.x, c.y, c.r);
+        }
+      } else if (d.objective === 'bank') {
+        for (i = 0; i < sim.bank.targets.length; i++) {
+          seg = sim.bank.targets[i]; if (seg.active) cueSeg(seg);
+        }
+      } else if (d.objective === 'rescue') {
+        for (i = 0; i < sim.standups.length; i++) {
+          seg = sim.standups[i];
+          if (seg.role === 'select' && seg.id === 2) cueSeg(seg);
+        }
+      }
+    }
   }
 
   // ---- Screen input handlers ----
