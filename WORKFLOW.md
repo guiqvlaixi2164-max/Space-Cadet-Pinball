@@ -147,5 +147,21 @@ Risk: low. Verify: self-test; doc review.
   gated camera bump on an effective nudge. The D1 dedupe also removes the worst
   banner/popup overlap (the remaining message banner y470 and callout y520 are
   vertically separated).
-- [ ] Phase 5 - Table depth (design)
+- [~] Phase 5 - Table depth (design) - PARTIAL: 5a + 5b shipped, 5c deferred.
+  - 5a DONE: an Orbit scoring shot. Crossing the top lane from one high side to
+    the other scores an ORBIT (`cfg.score.orbit`), with sound + popup. Pure
+    function of the primary ball's position, so determinism holds (signature still
+    `d302b753`). Verified by probe (L->R scores, drop-out does not).
+  - 5b DONE: Asteroid Field is now a distinct strategy, not a reshuffle - pop
+    bumpers and orbits pay `cfg.transform.asteroidBonus` (2x) while in Asteroid
+    mode, shown by a "BUMPERS 2X" HUD note under the mode badge and reinforced by
+    the deflectors funneling the ball into the bumper nest. Verified (bumper paid
+    200 = 100 x 2 at p=1).
+  - 5c DEFERRED: inlanes/outlanes + center-drain rework (caveat #19). This is a
+    geometry/physics change with real ball-trap risk, and a headless Monte-Carlo
+    cannot reliably tell a legitimate rest state (ball cradled on a flipper) from a
+    bad trap - the current table already leaves ~half of no-input drops at rest
+    within 30s. Doing it safely needs interactive human playtesting, so it is held
+    pending that rather than shipped unverified. Recommendation recorded in
+    PLAYTEST.md D2.
 - [ ] Phase 6 - Code and docs cleanup

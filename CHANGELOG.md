@@ -5,6 +5,28 @@ This project follows the phased build plan in `PLAN.md`. Post-v1 UX work follows
 the remediation plan in `WORKFLOW.md` (fixing the `PLAYTEST.md` / `caveat.md`
 findings).
 
+## UX Phase 5 - Table depth (partial: orbit shot + distinct Asteroid mode)
+
+Adds something to shoot for and gives the table transformation a real strategic
+identity. The self-test stays all-OK and the determinism signature is unchanged
+(`d302b753`): the orbit detector only reads the ball's position and the Asteroid
+scoring bonus lives in the rules layer, so neither touches the stepped simulation.
+
+### Added
+- An Orbit scoring shot: a ball that crosses the top lane from one high side to
+  the other (left-high <-> right-high) without dropping out scores an ORBIT
+  (`cfg.score.orbit`), with a rising whoosh SFX and a score popup. Tracked as a
+  pure function of the primary ball's position (deterministic).
+- Asteroid Field is now a distinct strategy rather than a cosmetic reshuffle: pop
+  bumpers and orbits pay a bonus multiple (`cfg.transform.asteroidBonus`) while in
+  Asteroid mode, shown by a "BUMPERS 2X" note under the table-mode badge and
+  reinforced by the deflectors funneling the ball toward the bumper nest.
+
+### Deferred
+- Inlanes/outlanes and the center-drain rework (caveat #19) are held for an
+  interactive playtest: a headless run cannot reliably distinguish a legitimate
+  ball-at-rest from a ball-trap, so this geometry change is not shipped unverified.
+
 ## UX Phase 4 - Feedback and game feel
 
 Cleaner notifications and a livelier bumper feel. The self-test stays all-OK; the

@@ -145,6 +145,8 @@
       tone(t, 'sine', 880, 220, 0.7, 0.32);
       tone(t, 'triangle', 1760, 660, 0.6, 0.12);
     },
+    // Orbit shot: a quick rising whoosh.
+    orbit: function (t) { arp(t, [392, 523, 659, 880], 0.07, 0.32, 'triangle'); },
   };
 
   // ---- Music: layers + lookahead scheduler ------------------------------------

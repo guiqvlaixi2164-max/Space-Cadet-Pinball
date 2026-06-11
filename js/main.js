@@ -26,6 +26,7 @@
         plunger: PB.Plunger.create(),
         events: [],
         lastLaunch: 0,
+        orbit: { armed: 0, timer: 0 },   // top-orbit shot tracking (0 | 'L' | 'R')
       };
       sim.ball = PB.makeBall(tableDef.spawn.x, tableDef.spawn.y, cfg.physics.ballRadius);
       sim.world.bodies.push(sim.ball);
@@ -147,6 +148,24 @@
       for (i = 0; i < world.circles.length; i++) PB.Bumper.update(world.circles[i], dt);
       PB.Target.update(sim.bank, dt);
 
+      // Orbit shot: a ball that crosses the top lane from one high side to the
+      // other (left-high <-> right-high) without dropping out scores an ORBIT.
+      // Pure function of the primary ball's position, so it stays deterministic.
+      var ob = sim.orbit, ob_b = sim.ball;
+      if (ob.timer > 0) { ob.timer -= dt; if (ob.timer <= 0) { ob.timer = 0; ob.armed = 0; } }
+      if (ob_b && ob_b.active) {
+        if (ob_b.pos.y < 150) {
+          if (ob_b.pos.x < 150) {
+            if (ob.armed === 'R') { sim.events.push({ type: 'orbit' }); ob.armed = 0; ob.timer = 0; }
+            else if (ob.armed !== 'L') { ob.armed = 'L'; ob.timer = 2.0; }
+          } else if (ob_b.pos.x > 440) {
+            if (ob.armed === 'L') { sim.events.push({ type: 'orbit' }); ob.armed = 0; ob.timer = 0; }
+            else if (ob.armed !== 'R') { ob.armed = 'R'; ob.timer = 2.0; }
+          }
+        }
+        if (ob_b.pos.y > 300) { ob.armed = 0; ob.timer = 0; }   // dropped out of the orbit
+      }
+
       // Drain: a lost ball during multiball just leaves play (no life); the last
       // ball draining is the real drain the game-rules layer reacts to.
       for (i = bodies.length - 1; i >= 0; i--) {
@@ -232,10 +251,15 @@
         if (g.ballSaveTimer < 0) g.ballSaveTimer = 0;
       }
 
+      // Asteroid Field mode pays pop bumpers and orbits at a bonus multiple, so
+      // the two table layouts play to different strategies (Innovation 1 depth).
+      var astBonus = (g.sim.transform && g.sim.transform.p >= 0.5) ? cfg.transform.asteroidBonus : 1;
+
       var ev = g.sim.events;
       for (var i = 0; i < ev.length; i++) {
         var e = ev[i];
-        if (e.type === 'bumper') { PB.Scoring.add(g.scoring, e.circle.score); PB.Game.cue(g, 'bumper'); }
+        if (e.type === 'bumper') { PB.Scoring.add(g.scoring, e.circle.score * astBonus); PB.Game.cue(g, 'bumper'); }
+        else if (e.type === 'orbit') { PB.Scoring.add(g.scoring, cfg.score.orbit * astBonus); PB.Game.cue(g, 'orbit'); }
         else if (e.type === 'slingshot') { PB.Scoring.add(g.scoring, e.seg.score); PB.Game.cue(g, 'sling'); }
         else if (e.type === 'drop') { PB.Scoring.add(g.scoring, e.seg.score); PB.Game.cue(g, 'target'); }
         else if (e.type === 'standup') { PB.Scoring.add(g.scoring, e.seg.score); PB.Game.cue(g, 'standup'); }
@@ -628,6 +652,10 @@
       } else if (name === 'bank') {
         shake(0.3);
         PB.particles.popup(app.particles, bx, by - 18, '+' + PB.format.commas(cfg.score.dropBank), T.neonGreen);
+      } else if (name === 'orbit') {
+        shake(0.22);
+        var ob = '+' + PB.format.commas(cfg.score.orbit * ((g.sim.transform && g.sim.transform.p >= 0.5) ? cfg.transform.asteroidBonus : 1));
+        PB.particles.popup(app.particles, bx, by - 18, S.orbitLabel + ' ' + ob, T.neonCyan);
       } else if (name === 'dilate') {
         shake(0.3);
       } else if (name === 'drain') {

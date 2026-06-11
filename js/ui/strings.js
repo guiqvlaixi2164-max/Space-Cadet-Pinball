@@ -66,6 +66,8 @@
 
     // Innovation callouts.
     dilationReady: 'SLO-MO READY  -  roll the ball through the zone',
+    orbitLabel: 'ORBIT',
+    asteroidBonus: 'BUMPERS 2X',
 
     // Missions and multiball.
     mWarp: 'WARP SURVEY',

@@ -69,6 +69,7 @@
       dropTarget: 500,
       dropBank: 2000,
       standup: 250,
+      orbit: 1500,        // full top-orbit traversal (left-high <-> right-high)
     },
 
     // Game rules.
@@ -97,8 +98,11 @@
 
     // Innovation 1: Dynamic Table Transformation. Seconds for a full morph
     // between Station and Asteroid Field layouts (bumpers relocate, deflectors
-    // deploy). The geometry of each mode lives in the table data.
-    transform: { duration: 1.3 },
+    // deploy). The geometry of each mode lives in the table data. asteroidBonus
+    // is the scoring multiple on pop-bumper and orbit hits while in Asteroid Field
+    // mode, giving the two layouts distinct strategies (Station favors the mission
+    // targets; Asteroid funnels the ball into a higher-paying bumper/orbit game).
+    transform: { duration: 1.3, asteroidBonus: 2 },
 
     // Innovation 2: Time Dilation Zone. The zone geometry is in the table data;
     // this is its tuning. slowScale is the per-ball time scale inside an active

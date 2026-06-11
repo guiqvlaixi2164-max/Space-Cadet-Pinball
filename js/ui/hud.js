@@ -180,6 +180,14 @@
       ctx.beginPath();
       ctx.arc(dotX, 50, 3, 0, Math.PI * 2);
       ctx.fill();
+      // In Asteroid Field, note the active scoring bonus so the mode reads as a
+      // distinct strategy, not just a reshuffle.
+      if (asteroid) {
+        ctx.shadowBlur = 0;
+        ctx.font = '700 10px "Segoe UI", Arial, sans-serif';
+        ctx.fillStyle = 'rgba(255,194,75,0.85)';
+        ctx.fillText(PB.strings.asteroidBonus, cfg.view.width - 14, 60);
+      }
       ctx.restore();
     },
 
